@@ -19,26 +19,31 @@ $EntryPoint = Join-Path $SourceRoot 'video_compressor'
 $IconPath = Join-Path $ProjectRoot 'assets\video-compressor.ico'
 $ReadmePath = Join-Path $ProjectRoot 'README.md'
 $LicensePath = Join-Path $ProjectRoot 'LICENSE'
-$PyProjectPath = Join-Path $ProjectRoot 'pyproject.toml'
+$VersionSourcePath = Join-Path $EntryPoint '__init__.py'
 $UvCommand = Get-Command uv -ErrorAction Stop
 $OutputRoot = [System.IO.Path]::GetFullPath($OutputRoot)
-$ProjectMetadata = Get-Content -LiteralPath $PyProjectPath -Raw -Encoding UTF8
+
+if (-not (Test-Path -LiteralPath $EntryPoint -PathType Container)) {
+    throw "GUI package entry point not found: $EntryPoint"
+}
+
+if (-not (Test-Path -LiteralPath $VersionSourcePath -PathType Leaf)) {
+    throw "Project version source not found: $VersionSourcePath"
+}
+
+$VersionSource = Get-Content -LiteralPath $VersionSourcePath -Raw -Encoding UTF8
 $VersionMatch = [regex]::Match(
-    $ProjectMetadata,
-    '(?m)^version\s*=\s*"(?<version>\d+\.\d+\.\d+)"\s*$'
+    $VersionSource,
+    '(?m)^__version__\s*=\s*"(?<version>\d+\.\d+\.\d+)"\s*$'
 )
 if (-not $VersionMatch.Success) {
-    throw "Unable to read the project version from $PyProjectPath"
+    throw "Unable to read the project version from $VersionSourcePath"
 }
 $ProductVersion = $VersionMatch.Groups['version'].Value
 $FileVersion = "$ProductVersion.0"
 $OneFileFlavor = 'system-ffmpeg'
 if ($BundleFfmpeg) {
     $OneFileFlavor = 'bundled-ffmpeg'
-}
-
-if (-not (Test-Path -LiteralPath $EntryPoint -PathType Container)) {
-    throw "GUI package entry point not found: $EntryPoint"
 }
 
 if (-not (Test-Path -LiteralPath $IconPath -PathType Leaf)) {
