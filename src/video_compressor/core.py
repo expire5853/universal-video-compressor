@@ -21,6 +21,8 @@ from contextlib import suppress
 from dataclasses import asdict, dataclass
 from pathlib import Path
 
+from .i18n import tr
+
 
 @dataclass(frozen=True)
 class ToolPaths:
@@ -181,52 +183,52 @@ CODEC_LABELS: dict[str, str] = {
 }
 
 QUALITY_MODE_LABELS: dict[str, str] = {
-    "constant_quality": "恒定质量",
-    "cqp": "恒定量化参数（CQP）",
-    "vbr": "目标码率（VBR）",
-    "cbr": "恒定码率（CBR）",
+    "constant_quality": "Constant quality",
+    "cqp": "Constant quantizer (CQP)",
+    "vbr": "Target bitrate (VBR)",
+    "cbr": "Constant bitrate (CBR)",
 }
 
 SPEED_LABELS: dict[str, str] = {
-    "fast": "快速",
-    "balanced": "平衡",
-    "quality": "高质量",
-    "max_quality": "极致质量",
+    "fast": "Fast",
+    "balanced": "Balanced",
+    "quality": "High quality",
+    "max_quality": "Maximum quality",
 }
 
 AUDIO_MODE_LABELS: dict[str, str] = {
-    "copy": "复制原音频",
+    "copy": "Copy source audio",
     "aac": "AAC",
     "opus": "Opus",
-    "flac": "FLAC 无损",
-    "none": "不保留音频",
+    "flac": "FLAC lossless",
+    "none": "Remove audio",
 }
 
 CONTAINERS: dict[str, ContainerSpec] = {
     "mp4": ContainerSpec(
         "mp4",
-        "MP4（兼容性好）",
+        "MP4 (high compatibility)",
         ".mp4",
         ("h264", "hevc", "av1"),
         ("copy", "aac", "none"),
     ),
     "mkv": ContainerSpec(
         "mkv",
-        "MKV（格式最宽容）",
+        "MKV (most flexible)",
         ".mkv",
         ("h264", "hevc", "av1", "vp9"),
         ("copy", "aac", "opus", "flac", "none"),
     ),
     "webm": ContainerSpec(
         "webm",
-        "WebM（网页与开放格式）",
+        "WebM (web and open formats)",
         ".webm",
         ("av1", "vp9"),
         ("opus", "none"),
     ),
     "mov": ContainerSpec(
         "mov",
-        "MOV（剪辑软件）",
+        "MOV (editing software)",
         ".mov",
         ("h264", "hevc"),
         ("copy", "aac", "none"),
@@ -252,12 +254,12 @@ AUDIO_COPY_CODECS: dict[str, frozenset[str] | None] = {
 }
 
 RESOLUTION_OPTIONS: dict[int | None, str] = {
-    None: "保持原分辨率",
-    2160: "最大 2160p / 4K（仅缩小）",
-    1440: "最大 1440p（仅缩小）",
-    1080: "最大 1080p（仅缩小）",
-    720: "最大 720p（仅缩小）",
-    480: "最大 480p（仅缩小）",
+    None: "Keep source resolution",
+    2160: "Maximum 2160p / 4K (downscale only)",
+    1440: "Maximum 1440p (downscale only)",
+    1080: "Maximum 1080p (downscale only)",
+    720: "Maximum 720p (downscale only)",
+    480: "Maximum 480p (downscale only)",
 }
 
 
@@ -455,7 +457,7 @@ ENCODERS: dict[str, EncoderSpec] = {
 }
 
 BACKEND_METADATA: dict[str, tuple[str, str, str]] = {
-    "cpu": ("CPU", "Software", "CPU 软件编码"),
+    "cpu": ("CPU", "Software", "CPU software encoding"),
     "amd_amf": ("GPU", "AMD", "AMD AMF"),
     "nvidia_nvenc": ("GPU", "NVIDIA", "NVIDIA NVENC"),
     "intel_qsv": ("GPU", "Intel", "Intel Quick Sync"),
@@ -546,8 +548,10 @@ def resolve_tools(explicit_ffmpeg: str | None = None) -> ToolPaths:
         return ToolPaths(resolved, ffprobe.resolve(), bundled=False)
 
     raise RuntimeError(
-        "未找到 ffmpeg.exe/ffprobe.exe。请使用包含 FFmpeg 的发行版，"
-        "安装 Gyan.FFmpeg，或设置 FFMPEG_PATH。"
+        tr(
+            "No ffmpeg.exe/ffprobe.exe was found. Use the Full edition, "
+            "install Gyan.FFmpeg, or set FFMPEG_PATH."
+        )
     )
 
 
@@ -570,13 +574,15 @@ def run_capture(
 def ffmpeg_version(tools: ToolPaths) -> str:
     result = run_capture([str(tools.ffmpeg), "-hide_banner", "-version"])
     first_line = (result.stdout or result.stderr).splitlines()
-    return first_line[0].strip() if first_line else "FFmpeg（版本未知）"
+    return first_line[0].strip() if first_line else tr("FFmpeg (unknown version)")
 
 
 def list_ffmpeg_encoders(tools: ToolPaths) -> frozenset[str]:
     result = run_capture([str(tools.ffmpeg), "-hide_banner", "-encoders"])
     if result.returncode != 0:
-        raise RuntimeError(result.stderr.strip() or "无法读取 FFmpeg 编码器列表。")
+        raise RuntimeError(
+            result.stderr.strip() or tr("Unable to read the FFmpeg encoder list.")
+        )
     combined = f"{result.stdout}\n{result.stderr}"
     names = re.findall(
         r"^\s*[VAS][F\.][S\.][X\.][B\.][D\.]\s+(\S+)", combined, re.MULTILINE
@@ -611,8 +617,10 @@ def probe_media(tools: ToolPaths, path: Path) -> MediaInfo:
     ]
     result = run_capture(command)
     if result.returncode != 0:
-        detail = result.stderr.strip() or "ffprobe 未返回详细信息"
-        raise RuntimeError(f"无法读取媒体信息：{detail}")
+        detail = result.stderr.strip() or tr("ffprobe returned no details")
+        raise RuntimeError(
+            tr("Unable to read media information: {detail}", detail=detail)
+        )
 
     try:
         data = json.loads(result.stdout)
@@ -641,7 +649,9 @@ def probe_media(tools: ToolPaths, path: Path) -> MediaInfo:
             audio_channels=int(audio.get("channels", 0) or 0) if audio else 0,
         )
     except (KeyError, StopIteration, TypeError, ValueError) as error:
-        raise RuntimeError("ffprobe 输出中没有可用的视频流。") from error
+        raise RuntimeError(
+            tr("ffprobe output contains no usable video stream.")
+        ) from error
 
 
 def _powershell_executable() -> str | None:
@@ -752,7 +762,7 @@ def _best_error_line(output: str, return_code: int) -> str:
     for line in lines:
         if re.search(r"(?i)(error|failed|invalid|unsupported|cannot|could not)", line):
             return line
-    return lines[-1] if lines else f"FFmpeg 退出码 {return_code}"
+    return lines[-1] if lines else tr("FFmpeg exit code {code}", code=return_code)
 
 
 def _probe_case(
@@ -815,17 +825,30 @@ def _probe_case(
 
     media = probe_media(tools, output_path)
     if media.codec != spec.codec_id:
-        return False, f"期望 {spec.codec_id}，实际得到 {media.codec}"
+        return False, tr(
+            "Expected {expected}, got {actual}",
+            expected=spec.codec_id,
+            actual=media.codec,
+        )
     if (media.width, media.height) != (width, height):
         return (
             False,
-            f"期望 {width}×{height}，实际得到 {media.width}×{media.height}",
+            tr(
+                "Expected {width}×{height}, got {actual_width}×{actual_height}",
+                width=width,
+                height=height,
+                actual_width=media.width,
+                actual_height=media.height,
+            ),
         )
     if pixel_depth == 10 and not any(
         marker in media.pixel_format for marker in ("10", "p010")
     ):
-        return False, f"要求 10-bit，实际得到 {media.pixel_format}"
-    return True, "通过"
+        return False, tr(
+            "10-bit required, got {pixel_format}",
+            pixel_format=media.pixel_format,
+        )
+    return True, tr("Passed")
 
 
 def probe_encoder(tools: ToolPaths, spec: EncoderSpec) -> EncoderProbe:
@@ -849,10 +872,18 @@ def probe_encoder(tools: ToolPaths, spec: EncoderSpec) -> EncoderProbe:
                 return EncoderProbe(
                     spec.id,
                     False,
-                    f"1080p 实际编码校验失败：{representative_detail}",
+                    tr(
+                        "1080p encode validation failed: {detail}",
+                        detail=representative_detail,
+                    ),
                     elapsed_ms,
                     (),
-                    (f"8-bit/恒定质量：{representative_detail}",),
+                    (
+                        tr(
+                            "8-bit/constant quality: {detail}",
+                            detail=representative_detail,
+                        ),
+                    ),
                 )
             supported.append(_probe_option_key(8, "constant_quality"))
 
@@ -872,19 +903,22 @@ def probe_encoder(tools: ToolPaths, spec: EncoderSpec) -> EncoderProbe:
                     256,
                     144,
                 )
-                label = f"{depth}-bit/{QUALITY_MODE_LABELS[mode]}"
+                label = f"{depth}-bit/{tr(QUALITY_MODE_LABELS[mode])}"
                 if ok:
                     supported.append(_probe_option_key(depth, mode))
                 else:
-                    failures.append(f"{label}：{detail}")
-            detail = f"1080p 回读通过；{len(supported)} 个质量/位深组合可用"
+                    failures.append(f"{label}: {detail}")
+            detail = tr(
+                "1080p readback passed; {count} quality/depth combinations available",
+                count=len(supported),
+            )
             available = True
     except subprocess.TimeoutExpired:
         available = False
-        detail = "初始化测试超过 15 秒"
+        detail = tr("Initialization test exceeded 15 seconds")
     except (OSError, RuntimeError, KeyError, ValueError) as error:
         available = False
-        detail = f"探测输出校验失败：{error}"
+        detail = tr("Probe output validation failed: {error}", error=error)
     elapsed_ms = round((time.monotonic() - started) * 1000)
     return EncoderProbe(
         spec.id,
@@ -914,17 +948,30 @@ def detect_capabilities(tools: ToolPaths) -> CapabilityReport:
         for spec in specs:
             if spec.ffmpeg_name not in compiled:
                 probes.append(
-                    EncoderProbe(spec.id, False, "当前 FFmpeg 未编译此编码器", 0)
+                    EncoderProbe(
+                        spec.id,
+                        False,
+                        tr("This FFmpeg build does not include this encoder"),
+                        0,
+                    )
                 )
             elif not device_present:
-                probes.append(EncoderProbe(spec.id, False, "未检测到对应设备", 0))
+                probes.append(
+                    EncoderProbe(
+                        spec.id,
+                        False,
+                        tr("No matching device was detected"),
+                        0,
+                    )
+                )
             else:
                 probes.append(probe_encoder(tools, spec))
 
         available = any(probe.available for probe in probes)
+        backend_label = tr(backend_name)
         if matching_devices:
             device_names = " / ".join(device.name for device in matching_devices)
-            label = f"{device_type} · {backend_name} · {device_names}"
+            label = f"{device_type} · {backend_label} · {device_names}"
             versions = sorted(
                 {
                     device.driver_version
@@ -932,30 +979,38 @@ def detect_capabilities(tools: ToolPaths) -> CapabilityReport:
                     if device.driver_version
                 }
             )
-            driver_version = ", ".join(versions) or "未知"
+            driver_version = ", ".join(versions) or tr("Unknown")
         elif backend_id == "cpu":
             cpu_name = next(
                 (device.name for device in devices if device.device_type == "CPU"),
                 platform.processor() or "CPU",
             )
-            label = f"CPU · 软件编码 · {cpu_name}"
-            driver_version = "不需要独立编码驱动"
+            label = tr("CPU · software encoding · {cpu}", cpu=cpu_name)
+            driver_version = tr("No dedicated encoding driver required")
         else:
-            label = f"{device_type} · {backend_name}"
-            driver_version = "未检测到"
+            label = f"{device_type} · {backend_label}"
+            driver_version = tr("Not detected")
 
         if available:
             passed = sum(probe.available for probe in probes)
-            reason = f"驱动/编码器实际初始化通过：{passed} 个格式可用"
+            reason = tr(
+                "Driver/encoder initialization passed: {count} formats available",
+                count=passed,
+            )
         elif not device_present:
-            reason = "未检测到对应硬件或驱动"
+            reason = tr("No matching hardware or driver detected")
         elif not any(spec.ffmpeg_name in compiled for spec in specs):
-            reason = "当前 FFmpeg 未包含对应编码器"
+            reason = tr("This FFmpeg build does not include a matching encoder")
         else:
             failure = next(
-                (probe.detail for probe in probes if probe.detail), "初始化失败"
+                (probe.detail for probe in probes if probe.detail),
+                tr("Initialization failed"),
             )
-            reason = f"编码器存在，但驱动或硬件初始化失败：{failure}"
+            reason = tr(
+                "Encoder found, but driver or hardware initialization failed: "
+                "{failure}",
+                failure=failure,
+            )
 
         backends.append(
             BackendCapability(
@@ -984,14 +1039,18 @@ def detect_capabilities(tools: ToolPaths) -> CapabilityReport:
             )
         )
         npu_label = f"NPU · {names}"
-        npu_reason = (
-            "NPU 与驱动已检测到，但当前 FFmpeg 没有 NPU 视频编码后端；"
-            "该设备不能作为本工具的编码器。"
+        npu_reason = tr(
+            "The NPU and its driver were detected, but this FFmpeg build has no "
+            "NPU video encoding backend; the device cannot be used as an encoder "
+            "by this application."
         )
     else:
-        versions = "未检测到"
-        npu_label = "NPU · 未检测到设备"
-        npu_reason = "未检测到 NPU；FFmpeg 也没有通用 NPU 视频编码后端。"
+        versions = tr("Not detected")
+        npu_label = tr("NPU · no device detected")
+        npu_reason = tr(
+            "No NPU was detected, and FFmpeg has no general-purpose NPU video "
+            "encoding backend."
+        )
     backends.append(
         BackendCapability(
             id="npu",
@@ -1022,14 +1081,18 @@ def get_backend(report: CapabilityReport, backend_id: str) -> BackendCapability:
     try:
         return next(backend for backend in report.backends if backend.id == backend_id)
     except StopIteration as error:
-        raise ValueError(f"未知编码后端：{backend_id}") from error
+        raise ValueError(
+            tr("Unknown encoding backend: {backend}", backend=backend_id)
+        ) from error
 
 
 def get_encoder(encoder_id: str) -> EncoderSpec:
     try:
         return ENCODERS[encoder_id]
     except KeyError as error:
-        raise ValueError(f"未知编码器：{encoder_id}") from error
+        raise ValueError(
+            tr("Unknown encoder: {encoder}", encoder=encoder_id)
+        ) from error
 
 
 def get_encoder_probe(
@@ -1040,7 +1103,9 @@ def get_encoder_probe(
         for probe in backend.encoders:
             if probe.encoder_id == encoder_id:
                 return probe
-    raise ValueError(f"能力报告中没有编码器：{encoder_id}")
+    raise ValueError(
+        tr("No encoder in the capability report: {encoder}", encoder=encoder_id)
+    )
 
 
 def supported_pixel_depths(
@@ -1089,7 +1154,7 @@ def quality_value_properties(
     quality_mode: str,
 ) -> tuple[int, int, int, str, bool]:
     if quality_mode == "constant_quality":
-        unit = "质量级别" if encoder.cq_higher_is_better else "CRF / CQ"
+        unit = tr("Quality level") if encoder.cq_higher_is_better else "CRF / CQ"
         return (
             encoder.cq_min,
             encoder.cq_max,
@@ -1107,7 +1172,7 @@ def quality_value_properties(
         )
     if quality_mode in {"vbr", "cbr"}:
         return (100, 200_000, encoder.bitrate_default, "kb/s", True)
-    raise ValueError(f"未知质量模式：{quality_mode}")
+    raise ValueError(tr("Unknown quality mode: {mode}", mode=quality_mode))
 
 
 def can_copy_audio(container_id: str, source_audio_codec: str | None) -> bool:
@@ -1210,12 +1275,18 @@ def _quality_arguments(
         )
         return arguments
 
-    raise ValueError(f"编码器 {encoder.ffmpeg_name} 不支持质量模式 {mode}")
+    raise ValueError(
+        tr(
+            "Encoder {encoder} does not support quality mode {mode}",
+            encoder=encoder.ffmpeg_name,
+            mode=mode,
+        )
+    )
 
 
 def _speed_arguments(encoder: EncoderSpec, speed: str) -> list[str]:
     if speed not in SPEED_LABELS:
-        raise ValueError(f"未知速度档：{speed}")
+        raise ValueError(tr("Unknown speed preset: {speed}", speed=speed))
 
     if encoder.backend_id == "cpu":
         if encoder.codec_id in {"h264", "hevc"}:
@@ -1332,10 +1403,15 @@ def _validate_settings(
 ) -> tuple[EncoderSpec, ContainerSpec]:
     encoder = get_encoder(settings.encoder_id)
     if encoder.backend_id != settings.backend_id:
-        raise ValueError("编码器与所选计算设备不匹配。")
+        raise ValueError(tr("The encoder does not match the selected compute device."))
     if report is not None and encoder.id not in report.available_encoder_ids:
         backend = get_backend(report, settings.backend_id)
-        raise RuntimeError(f"所选编码器未通过实际初始化：{backend.reason}")
+        raise RuntimeError(
+            tr(
+                "The selected encoder failed real initialization: {reason}",
+                reason=backend.reason,
+            )
+        )
     if report is not None:
         supported_modes = supported_quality_modes(
             report, encoder.id, settings.pixel_depth
@@ -1348,48 +1424,84 @@ def _validate_settings(
                     for detail in probe.option_failures
                     if detail.startswith(
                         f"{settings.pixel_depth}-bit/"
-                        f"{QUALITY_MODE_LABELS[settings.quality_mode]}"
+                        f"{tr(QUALITY_MODE_LABELS[settings.quality_mode])}"
                     )
                 ),
-                "该位深与质量模式组合未通过实际编码测试",
+                tr(
+                    "This pixel-depth and quality-mode combination failed the "
+                    "real encode test"
+                ),
             )
             raise RuntimeError(failure)
 
     try:
         container = CONTAINERS[settings.container_id]
     except KeyError as error:
-        raise ValueError(f"未知容器：{settings.container_id}") from error
+        raise ValueError(
+            tr("Unknown container: {container}", container=settings.container_id)
+        ) from error
     if encoder.codec_id not in container.codecs:
         raise ValueError(
-            f"{container.label} 不支持当前选择的 {CODEC_LABELS[encoder.codec_id]}。"
+            tr(
+                "{container} does not support the selected {codec} codec.",
+                container=tr(container.label),
+                codec=CODEC_LABELS[encoder.codec_id],
+            )
         )
     if settings.quality_mode not in encoder.quality_modes:
-        quality_label = QUALITY_MODE_LABELS[settings.quality_mode]
-        raise ValueError(f"{encoder.ffmpeg_name} 不支持 {quality_label}。")
+        quality_label = tr(QUALITY_MODE_LABELS[settings.quality_mode])
+        raise ValueError(
+            tr(
+                "{encoder} does not support {mode}.",
+                encoder=encoder.ffmpeg_name,
+                mode=quality_label,
+            )
+        )
     minimum, maximum, _, _, _ = quality_value_properties(encoder, settings.quality_mode)
     if not minimum <= settings.quality_value <= maximum:
-        raise ValueError(f"质量值必须在 {minimum} 到 {maximum} 之间。")
+        raise ValueError(
+            tr(
+                "Quality value must be between {minimum} and {maximum}.",
+                minimum=minimum,
+                maximum=maximum,
+            )
+        )
     if settings.pixel_depth not in encoder.pixel_depths:
         raise ValueError(
-            f"{encoder.ffmpeg_name} 不支持 {settings.pixel_depth}-bit 输出。"
+            tr(
+                "{encoder} does not support {depth}-bit output.",
+                encoder=encoder.ffmpeg_name,
+                depth=settings.pixel_depth,
+            )
         )
     if settings.audio_mode not in container.audio_modes:
-        raise ValueError(f"{container.label} 不支持所选音频模式。")
+        raise ValueError(
+            tr(
+                "{container} does not support the selected audio mode.",
+                container=tr(container.label),
+            )
+        )
     if (
         settings.audio_mode == "copy"
         and source.has_audio
         and not can_copy_audio(settings.container_id, source.audio_codec)
     ):
         raise ValueError(
-            f"{container.label} 不能直接复制源音频 {source.audio_codec or '无音频'}；"
-            "请选择兼容的音频编码或移除音频。"
+            tr(
+                "{container} cannot copy source audio {audio}; select a compatible "
+                "audio codec or remove audio.",
+                container=tr(container.label),
+                audio=source.audio_codec or tr("No audio"),
+            )
         )
     if settings.resolution_height not in RESOLUTION_OPTIONS:
-        raise ValueError("不支持所选分辨率。")
+        raise ValueError(tr("The selected resolution is not supported."))
     if settings.frame_rate is not None and not 1 <= settings.frame_rate <= 240:
-        raise ValueError("帧率必须在 1 到 240 之间，或选择保持源帧率。")
+        raise ValueError(
+            tr("Frame rate must be between 1 and 240, or keep the source frame rate.")
+        )
     if not 1 <= settings.gop_seconds <= 30:
-        raise ValueError("关键帧间隔必须在 1 到 30 秒之间。")
+        raise ValueError(tr("Keyframe interval must be between 1 and 30 seconds."))
     return encoder, container
 
 
@@ -1488,7 +1600,7 @@ def create_compression_job(
 ) -> CompressionJob:
     source_path = input_path.expanduser().resolve(strict=True)
     if not source_path.is_file():
-        raise ValueError(f"输入不是文件：{source_path}")
+        raise ValueError(tr("Input is not a file: {path}", path=source_path))
     source = probe_media(tools, source_path)
     encoder, container = _validate_settings(settings, source, report)
 
@@ -1501,15 +1613,21 @@ def create_compression_job(
         final_path = final_path.with_suffix(container.extension)
     if final_path.suffix.lower() != container.extension:
         raise ValueError(
-            f"所选容器要求输出扩展名为 {container.extension}，"
-            f"当前为 {final_path.suffix or '无扩展名'}。"
+            tr(
+                "The selected container requires the {extension} extension; "
+                "current extension is {actual}.",
+                extension=container.extension,
+                actual=final_path.suffix or tr("No extension"),
+            )
         )
     if not final_path.parent.is_dir():
-        raise ValueError(f"输出目录不存在：{final_path.parent}")
+        raise ValueError(
+            tr("Output directory does not exist: {path}", path=final_path.parent)
+        )
     if os.path.normcase(str(source_path)) == os.path.normcase(str(final_path)):
-        raise ValueError("输入与输出路径不能相同。")
+        raise ValueError(tr("Input and output paths cannot be the same."))
     if final_path.exists() and not settings.overwrite:
-        raise FileExistsError(f"输出已存在：{final_path}")
+        raise FileExistsError(tr("Output already exists: {path}", path=final_path))
 
     partial_path = make_partial_path(final_path)
     command, max_width, max_height = build_ffmpeg_command(
@@ -1611,7 +1729,7 @@ def execute_job(
             if key != "progress":
                 continue
             if value == "end":
-                progress_callback(100.0, "正在验证输出…")
+                progress_callback(100.0, tr("Verifying output…"))
                 continue
 
             try:
@@ -1623,55 +1741,90 @@ def execute_job(
                 if job.source.duration > 0
                 else 0.0
             )
-            status = (
-                f"帧 {state.get('frame', '?')}  "
-                f"速度 {state.get('speed', '?')}  "
-                f"码率 {state.get('bitrate', '?')}"
+            status = tr(
+                "Frame {frame}  Speed {speed}  Bitrate {bitrate}",
+                frame=state.get("frame", "?"),
+                speed=state.get("speed", "?"),
+                bitrate=state.get("bitrate", "?"),
             )
             progress_callback(percent, status)
 
         return_code = process.wait()
         if cancel_event.is_set():
-            raise InterruptedError("用户取消了压制。")
+            raise InterruptedError(tr("Compression was cancelled by the user."))
         if return_code != 0:
-            raise RuntimeError(f"FFmpeg 退出码：{return_code}")
+            raise RuntimeError(tr("FFmpeg exit code: {code}", code=return_code))
 
         verified = probe_media(tools, job.partial_path)
         if verified.codec != job.encoder.codec_id:
             raise RuntimeError(
-                f"输出校验失败：期望 {job.encoder.codec_id}，实际 {verified.codec}。"
+                tr(
+                    "Output verification failed: expected {expected}, got {actual}.",
+                    expected=job.encoder.codec_id,
+                    actual=verified.codec,
+                )
             )
         if job.expected_max_width is None or job.expected_max_height is None:
             if (
                 verified.width != job.source.width
                 or verified.height != job.source.height
             ):
-                raise RuntimeError("输出校验失败：分辨率与源视频不一致。")
+                raise RuntimeError(
+                    tr(
+                        "Output verification failed: resolution differs from the "
+                        "source video."
+                    )
+                )
         elif (
             verified.width > job.expected_max_width
             or verified.height > job.expected_max_height
         ):
-            raise RuntimeError("输出校验失败：分辨率超过所选上限。")
+            raise RuntimeError(
+                tr("Output verification failed: resolution exceeds the selected limit.")
+            )
 
         if job.settings.frame_rate is not None:
             actual_rate = parse_rate(verified.frame_rate)
             if abs(actual_rate - job.settings.frame_rate) > 0.01:
-                raise RuntimeError("输出校验失败：帧率与设置不一致。")
+                raise RuntimeError(
+                    tr(
+                        "Output verification failed: frame rate does not match the "
+                        "setting."
+                    )
+                )
         if job.settings.pixel_depth == 10 and not any(
             marker in verified.pixel_format for marker in ("10", "p010")
         ):
-            raise RuntimeError("输出校验失败：没有得到 10-bit 视频。")
+            raise RuntimeError(
+                tr("Output verification failed: no 10-bit video was produced.")
+            )
         if job.settings.audio_mode == "none" and verified.has_audio:
-            raise RuntimeError("输出校验失败：要求移除音频，但输出仍包含音频。")
+            raise RuntimeError(
+                tr(
+                    "Output verification failed: audio was removed, but the output "
+                    "still contains audio."
+                )
+            )
         if (
             job.settings.audio_mode != "none"
             and job.source.has_audio
             and not verified.has_audio
         ):
-            raise RuntimeError("输出校验失败：源视频含音频，但输出音频丢失。")
+            raise RuntimeError(
+                tr(
+                    "Output verification failed: the source contains audio, but "
+                    "output audio is missing."
+                )
+            )
 
         if job.output_path.exists() and not job.settings.overwrite:
-            raise FileExistsError(f"输出在压制期间出现，未覆盖：{job.output_path}")
+            raise FileExistsError(
+                tr(
+                    "Output appeared during compression and was not overwritten: "
+                    "{path}",
+                    path=job.output_path,
+                )
+            )
         os.replace(job.partial_path, job.output_path)
 
         output_size = job.output_path.stat().st_size

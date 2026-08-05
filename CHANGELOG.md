@@ -6,6 +6,18 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+## [0.1.1] - 2026-08-05
+
+### Added
+
+- Added an English and Simplified Chinese application language selector with a persisted choice and command-line override.
+- Added a complete Chinese README and prominent pre-download guidance for choosing Full or Lite.
+
+### Changed
+
+- Split Windows packages into a portable Full edition with bundled FFmpeg/FFprobe and a smaller Lite edition that uses system tools.
+- Build and verify both editions independently, with distinct executable names and combined release checksums.
+
 ## [0.1.0] - 2026-08-05
 
 ### Added

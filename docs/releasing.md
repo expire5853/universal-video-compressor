@@ -19,7 +19,7 @@ Tagged releases are built on `windows-latest` by `.github/workflows/windows-rele
 4. Build and test locally when changing packaging, Qt, FFmpeg, or device detection:
 
    ```powershell
-   .\scripts\build_windows.ps1 -Mode OneFile
+   .\scripts\build_windows.ps1 -Mode OneFile -Edition Both
    ```
 
 5. Commit the release metadata and create an annotated tag matching the project version:
@@ -29,14 +29,16 @@ Tagged releases are built on `windows-latest` by `.github/workflows/windows-rele
    git push origin main --follow-tags
    ```
 
-The tag workflow installs the pinned FFmpeg full build, runs tests, builds the Nuitka executable, performs a compiled self-test, writes `SHA256SUMS.txt`, uploads the workflow artifact, and creates a GitHub Release.
+The tag workflow installs the pinned FFmpeg full build, runs tests, builds both Nuitka editions, and performs an English/Chinese compiled self-test across the two executables. It also verifies that Full resolves bundled tools while Lite resolves the system installation, writes a combined `SHA256SUMS.txt`, uploads separate workflow artifacts, and creates a GitHub Release.
 
 ## Release contents
 
-- `VideoCompressor.exe`;
+- `VideoCompressor-Full.exe`, including FFmpeg and FFprobe;
+- `VideoCompressor-Lite.exe`, requiring FFmpeg and FFprobe on `PATH`;
 - `README.md`;
+- `README.zh-CN.md`;
 - `LICENSE.txt` for the application;
-- `FFmpeg-GPLv3-LICENSE.txt` for the bundled FFmpeg build;
-- `SHA256SUMS.txt`.
+- `FFmpeg-GPLv3-LICENSE.txt` for the Full edition's bundled FFmpeg build;
+- `SHA256SUMS.txt`, covering both executables.
 
 The executable is unsigned unless the workflow is extended with a protected code-signing secret and signing step. State that clearly in release notes.

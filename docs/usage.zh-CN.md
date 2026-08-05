@@ -2,6 +2,17 @@
 
 Universal Video Compressor 是面向 Windows 的通用视频压制工作台。程序会检查设备、驱动、FFmpeg 编译状态，并执行实际编码和 FFprobe 回读；不可用的设备仍会出现在检测详情中，但不能被选择。
 
+项目首页的完整中文版本见 [README.zh-CN.md](../README.zh-CN.md)。
+
+## 界面语言
+
+首次启动会跟随 Windows 系统语言。程序顶部可以选择 **English** 或 **简体中文**，设置会保存并在下一次启动时生效。命令行也可以临时指定语言：
+
+```powershell
+VideoCompressor-Full.exe --language en
+VideoCompressor-Full.exe --language zh_CN
+```
+
 ## 从源码启动
 
 安装 [uv](https://docs.astral.sh/uv/) 和 FFmpeg 后，在仓库根目录执行：
@@ -51,15 +62,27 @@ uv run video-compressor "C:\Videos\demo.mp4"
 
 ## Windows 单文件版
 
+Release 提供两个功能相同的版本：
+
+| 版本 | 大约体积 | FFmpeg 要求 | 适合场景 |
+|---|---:|---|---|
+| Full | 142 MiB | 已内置 FFmpeg 和 FFprobe | 下载后直接运行 |
+| Lite | 21 MiB | 系统 `PATH` 中必须有 `ffmpeg.exe` 和 `ffprobe.exe` | 已统一安装或管理 FFmpeg |
+
 ```powershell
 powershell -ExecutionPolicy Bypass `
   -File .\scripts\build_windows.ps1 `
-  -Mode OneFile
+  -Mode OneFile `
+  -Edition Both
 ```
 
-默认产物：`artifacts\onefile\VideoCompressor.exe`。
+产物位置：
 
-默认构建会把 FFmpeg 和 FFprobe 嵌入 EXE。首次运行解压到 `%LOCALAPPDATA%\UniversalVideoCompressor\0.1.0\bundled-ffmpeg`，后续启动复用缓存。使用 `-BundleFfmpeg:$false` 可以显著减小体积，并使用独立的 `system-ffmpeg` 缓存，但目标机器必须自行安装 FFmpeg。
+- `artifacts\full\onefile\VideoCompressor-Full.exe`；
+- `artifacts\lite\onefile\VideoCompressor-Lite.exe`；
+- `artifacts\release` 中的两个 EXE、公共许可证和合并后的校验文件。
+
+使用 `-Edition Full` 或 `-Edition Lite` 可以只构建一个版本。Full 首次运行会把内容解压到 `%LOCALAPPDATA%\UniversalVideoCompressor\<版本>\bundled-ffmpeg`；Lite 使用独立的 `system-ffmpeg` 缓存，并从系统寻找 FFmpeg。
 
 ## 非交互验证
 

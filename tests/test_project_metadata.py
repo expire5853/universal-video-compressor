@@ -24,3 +24,15 @@ class ProjectMetadataTests(unittest.TestCase):
             distribution_version("universal-video-compressor"),
             video_compressor.__version__,
         )
+
+    def test_readmes_link_languages_and_explain_editions(self) -> None:
+        project_root = Path(__file__).resolve().parents[1]
+        english = (project_root / "README.md").read_text(encoding="utf-8")
+        chinese = (project_root / "README.zh-CN.md").read_text(encoding="utf-8")
+
+        self.assertIn("[简体中文](README.zh-CN.md)", english)
+        self.assertIn("[English](README.md)", chinese)
+        for readme in (english, chinese):
+            self.assertIn("VideoCompressor-Full.exe", readme)
+            self.assertIn("VideoCompressor-Lite.exe", readme)
+            self.assertIn("Get-Command ffmpeg.exe, ffprobe.exe", readme)

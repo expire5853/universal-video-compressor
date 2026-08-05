@@ -1,14 +1,32 @@
 # Universal Video Compressor
 
+**English** | [简体中文](README.zh-CN.md)
+
 ![Python 3.12](https://img.shields.io/badge/Python-3.12-3776AB?logo=python&logoColor=white)
 ![Windows](https://img.shields.io/badge/platform-Windows-0078D4?logo=windows)
 ![License](https://img.shields.io/badge/license-GPL--3.0--only-blue)
 
 A modern Windows video compression workbench built with PySide6 and FFmpeg. It detects CPU, GPU, and NPU devices, checks their drivers, and verifies every selectable encoder with a real encode-and-probe test.
 
-一个面向 Windows 的现代视频压制工作台。它不会把“FFmpeg 列出了编码器”误认为“本机能够编码”，而是依次验证设备、驱动、编码器初始化、输出尺寸和 FFprobe 回读结果。
-
 ![Application preview](docs/images/app-preview.png)
+
+## Which Windows edition should I download?
+
+**Download Full if you are unsure.** It includes FFmpeg and FFprobe and needs no separate multimedia installation.
+
+Choose Lite only when FFmpeg is already managed on your computer. Before downloading, open PowerShell and run:
+
+```powershell
+Get-Command ffmpeg.exe, ffprobe.exe -ErrorAction Stop
+ffmpeg -hide_banner -version
+ffprobe -hide_banner -version
+```
+
+- If all commands print paths or version information, you can use Lite.
+- If any command reports that it was not found, use Full.
+- Advanced users can also point Lite to FFmpeg with `FFMPEG_PATH` or the `--ffmpeg` option.
+
+Both editions have the same application features. GPU acceleration still requires a working AMD, NVIDIA, or Intel graphics driver; the application performs a real encoder test after startup.
 
 ## Highlights
 
@@ -20,7 +38,8 @@ A modern Windows video compression workbench built with PySide6 and FFmpeg. It d
 - Quality controls: constant quality, CQP, VBR, and CBR, filtered by the selected backend and pixel depth.
 - Audio: compatible stream copy, AAC, Opus, FLAC, or removal.
 - Safe publishing: writes to a partial file, verifies the result, and then publishes atomically.
-- Portable Windows release: Nuitka OneFile builds can include FFmpeg and FFprobe.
+- Two Windows releases: Full includes FFmpeg/FFprobe; Lite uses a system installation.
+- English and Simplified Chinese interface, selected from the application header.
 
 ## Capability model
 
@@ -64,15 +83,35 @@ uv run python -m video_compressor `
 
 Detailed Chinese instructions are available in [docs/usage.zh-CN.md](docs/usage.zh-CN.md).
 
-## Build a portable Windows executable
+## Windows release editions
+
+| Edition | Approximate size | FFmpeg requirement | Best for |
+|---|---:|---|---|
+| Full | 142 MiB | Included | Download and run without installing FFmpeg |
+| Lite | 21 MiB | `ffmpeg.exe` and `ffprobe.exe` on `PATH` | Smaller downloads and managed FFmpeg installations |
+
+The application features are identical. Available CPU and GPU encoders still depend on the FFmpeg build and drivers detected on the target machine.
+
+## Application language
+
+The first run follows the Windows language: Chinese systems use Simplified Chinese and other systems use English. Select **English** or **简体中文** from the language menu in the application header. The saved language is applied on the next start. You can also launch with `--language en` or `--language zh_CN`.
+
+## Build the Windows executables
 
 ```powershell
 powershell -ExecutionPolicy Bypass `
   -File .\scripts\build_windows.ps1 `
-  -Mode OneFile
+  -Mode OneFile `
+  -Edition Both
 ```
 
-The output is written to `artifacts/onefile/VideoCompressor.exe`. Use `-BundleFfmpeg:$false` for a smaller executable that relies on the target machine's FFmpeg installation.
+The outputs are:
+
+- `artifacts/full/onefile/VideoCompressor-Full.exe`;
+- `artifacts/lite/onefile/VideoCompressor-Lite.exe`;
+- combined release files and checksums under `artifacts/release`.
+
+Use `-Edition Full` or `-Edition Lite` to build only one edition. Full builds accept `-FfmpegPath` when the tools are not discoverable automatically.
 
 ## Development
 

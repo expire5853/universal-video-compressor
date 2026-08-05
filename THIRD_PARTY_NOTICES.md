@@ -4,7 +4,7 @@ The project license does not replace the licenses of its dependencies or bundled
 
 ## FFmpeg and FFprobe
 
-Portable releases may include a separately executed, GPL-enabled FFmpeg/FFprobe build. Each release directory must include the exact FFmpeg license file copied by `scripts/build_windows.ps1`.
+The Full release includes a separately executed, GPL-enabled FFmpeg/FFprobe build. Its release directory must include the exact FFmpeg license file copied by `scripts/build_windows.ps1`. The Lite release does not bundle these tools and instead uses the installation provided by the user.
 
 FFmpeg explains that its base license is LGPL-2.1-or-later, while enabling optional GPL components makes GPL terms apply to that build. Consult the [FFmpeg legal and license page](https://ffmpeg.org/legal.html) and the configuration printed by `ffmpeg -version` for the exact build.
 

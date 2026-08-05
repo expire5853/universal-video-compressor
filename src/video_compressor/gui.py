@@ -97,6 +97,14 @@ from .core import (
     supported_pixel_depths,
     supported_quality_modes,
 )
+from .i18n import (
+    LANGUAGE_NAMES,
+    get_language,
+    set_language,
+    system_language,
+    tr,
+    translate_for,
+)
 
 APP_NAME = "Video Compressor"
 APP_VERSION = __version__
@@ -288,12 +296,18 @@ QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {
 
 
 PROFILE_DESCRIPTIONS: dict[str, str] = {
-    "custom": "手动组合设备、格式、质量与画面参数。",
-    "demo": "操作演示：HEVC、30 fps、恒定高质量、最慢质量档。",
-    "general": "通用高质量：HEVC、保持源帧率、高质量档。",
-    "compact": "小体积：优先 AV1，保持源帧率并适度提高压缩率。",
-    "compatible": "兼容优先：H.264、MP4、8-bit，适合广泛播放设备。",
-    "streaming": "固定带宽：H.264、30 fps、CBR、2 秒关键帧间隔。",
+    "custom": "Manually combine device, format, quality, and video settings.",
+    "demo": (
+        "Screen demo: HEVC, 30 fps, constant high quality, slowest quality preset."
+    ),
+    "general": ("General high quality: HEVC, source frame rate, high-quality preset."),
+    "compact": (
+        "Small file: prefer AV1, keep source frame rate, and increase compression."
+    ),
+    "compatible": (
+        "Compatibility first: H.264, MP4, 8-bit, for broad playback support."
+    ),
+    "streaming": ("Fixed bandwidth: H.264, 30 fps, CBR, 2-second keyframe interval."),
 }
 
 
@@ -411,7 +425,7 @@ class MainWindow(QMainWindow):
     ) -> None:
         super().__init__()
         self.setObjectName("mainWindow")
-        self.setWindowTitle(f"{APP_NAME} · 通用编码工作台")
+        self.setWindowTitle(f"{APP_NAME} · {tr('Universal encoding workbench')}")
         self.setWindowIcon(build_app_icon())
         self.setMinimumSize(940, 760)
         self.resize(1120, 960)
@@ -464,25 +478,39 @@ class MainWindow(QMainWindow):
         header = QHBoxLayout()
         title_column = QVBoxLayout()
         title_column.setSpacing(2)
-        title_column.addWidget(QLabel("通用视频压制工作台", objectName="appTitle"))
+        title_column.addWidget(
+            QLabel(tr("Universal video compression workbench"), objectName="appTitle")
+        )
         title_column.addWidget(
             QLabel(
-                "CPU · GPU · NPU 能力识别 · H.264 / HEVC / AV1 / VP9",
+                tr("CPU · GPU · NPU capability detection · H.264 / HEVC / AV1 / VP9"),
                 objectName="appSubtitle",
             )
         )
         header.addLayout(title_column)
         header.addStretch(1)
-        self.capability_pill = QLabel("正在准备硬件检测", objectName="warningPill")
+        header.addWidget(QLabel(tr("Language"), objectName="fieldLabel"))
+        self.language_combo = QComboBox()
+        for language_id, language_name in LANGUAGE_NAMES.items():
+            self.language_combo.addItem(language_name, language_id)
+        self.language_combo.setCurrentIndex(
+            max(0, self.language_combo.findData(get_language()))
+        )
+        header.addWidget(self.language_combo)
+        self.capability_pill = QLabel(
+            tr("Preparing hardware detection"), objectName="warningPill"
+        )
         self.capability_pill.setAlignment(Qt.AlignmentFlag.AlignCenter)
         header.addWidget(self.capability_pill)
         layout.addLayout(header)
 
-        source_card, source_layout = self._new_card("源文件与输出")
+        source_card, source_layout = self._new_card(tr("Source and output"))
         self.input_edit = QLineEdit()
-        self.input_edit.setPlaceholderText("选择视频，或将文件拖入窗口")
+        self.input_edit.setPlaceholderText(
+            tr("Select a video or drop a file into the window")
+        )
         self.input_edit.setClearButtonEnabled(True)
-        self.browse_input_button = QPushButton("选择视频")
+        self.browse_input_button = QPushButton(tr("Select video"))
         self.browse_input_button.setIcon(
             self.style().standardIcon(QStyle.StandardPixmap.SP_DialogOpenButton)
         )
@@ -490,14 +518,18 @@ class MainWindow(QMainWindow):
         input_row.setSpacing(8)
         input_row.addWidget(self.input_edit, 1)
         input_row.addWidget(self.browse_input_button)
-        source_layout.addWidget(QLabel("输入视频", objectName="fieldLabel"), 1, 0)
+        source_layout.addWidget(
+            QLabel(tr("Input video"), objectName="fieldLabel"), 1, 0
+        )
         source_layout.addLayout(input_row, 1, 1)
 
         self.output_edit = QLineEdit()
-        self.output_edit.setPlaceholderText("留空时按格式和编码器自动命名")
+        self.output_edit.setPlaceholderText(
+            tr("Leave blank to name automatically from the format and encoder")
+        )
         self.output_edit.setClearButtonEnabled(True)
-        self.auto_output_button = QPushButton("自动命名")
-        self.browse_output_button = QPushButton("保存位置")
+        self.auto_output_button = QPushButton(tr("Automatic name"))
+        self.browse_output_button = QPushButton(tr("Save location"))
         self.browse_output_button.setIcon(
             self.style().standardIcon(QStyle.StandardPixmap.SP_DialogSaveButton)
         )
@@ -506,16 +538,20 @@ class MainWindow(QMainWindow):
         output_row.addWidget(self.output_edit, 1)
         output_row.addWidget(self.auto_output_button)
         output_row.addWidget(self.browse_output_button)
-        source_layout.addWidget(QLabel("输出文件", objectName="fieldLabel"), 2, 0)
+        source_layout.addWidget(
+            QLabel(tr("Output file"), objectName="fieldLabel"), 2, 0
+        )
         source_layout.addLayout(output_row, 2, 1)
 
-        self.source_info_label = QLabel("选择视频后将显示媒体信息。")
+        self.source_info_label = QLabel(
+            tr("Media information appears after selecting a video.")
+        )
         self.source_info_label.setObjectName("muted")
         self.source_info_label.setWordWrap(True)
         source_layout.addWidget(self.source_info_label, 3, 1)
         layout.addWidget(source_card)
 
-        device_card, device_layout = self._new_card("编码设备与格式")
+        device_card, device_layout = self._new_card(tr("Encoding device and format"))
         device_controls = QGridLayout()
         device_controls.setHorizontalSpacing(16)
         device_controls.setVerticalSpacing(8)
@@ -525,17 +561,23 @@ class MainWindow(QMainWindow):
         self.codec_combo = QComboBox()
         self.container_combo = QComboBox()
         for container in CONTAINERS.values():
-            self.container_combo.addItem(container.label, container.id)
+            self.container_combo.addItem(tr(container.label), container.id)
         self.container_combo.setCurrentIndex(
             max(0, self.container_combo.findData("mp4"))
         )
-        self.refresh_button = QPushButton("重新检测")
-        self.details_button = QPushButton("检测详情")
+        self.refresh_button = QPushButton(tr("Detect again"))
+        self.details_button = QPushButton(tr("Detection details"))
         self.details_button.setEnabled(False)
 
-        device_controls.addWidget(QLabel("编码设备", objectName="fieldLabel"), 0, 0)
-        device_controls.addWidget(QLabel("视频编码", objectName="fieldLabel"), 0, 1)
-        device_controls.addWidget(QLabel("封装格式", objectName="fieldLabel"), 0, 2)
+        device_controls.addWidget(
+            QLabel(tr("Encoding device"), objectName="fieldLabel"), 0, 0
+        )
+        device_controls.addWidget(
+            QLabel(tr("Video codec"), objectName="fieldLabel"), 0, 1
+        )
+        device_controls.addWidget(
+            QLabel(tr("Container"), objectName="fieldLabel"), 0, 2
+        )
         device_controls.addWidget(self.backend_combo, 1, 0)
         device_controls.addWidget(self.codec_combo, 1, 1)
         device_controls.addWidget(self.container_combo, 1, 2)
@@ -550,41 +592,44 @@ class MainWindow(QMainWindow):
         device_layout.addLayout(device_controls, 1, 0, 1, 2)
 
         self.hardware_summary = QLabel(
-            "将分别检查设备、驱动、FFmpeg 编码器，以及一帧实际初始化。",
+            tr(
+                "Devices, drivers, FFmpeg encoders, and a real one-frame "
+                "initialization are checked separately."
+            ),
             objectName="hintPanel",
         )
         self.hardware_summary.setWordWrap(True)
         device_layout.addWidget(self.hardware_summary, 2, 0, 1, 2)
         layout.addWidget(device_card)
 
-        quality_card, quality_layout = self._new_card("画面与质量")
+        quality_card, quality_layout = self._new_card(tr("Video and quality"))
         quality_controls = QGridLayout()
         quality_controls.setHorizontalSpacing(16)
         quality_controls.setVerticalSpacing(8)
 
         self.profile_combo = QComboBox()
-        self.profile_combo.addItem("自定义", "custom")
-        self.profile_combo.addItem("操作演示高质量", "demo")
-        self.profile_combo.addItem("通用高质量", "general")
-        self.profile_combo.addItem("小体积", "compact")
-        self.profile_combo.addItem("兼容优先", "compatible")
-        self.profile_combo.addItem("固定带宽 / 直播", "streaming")
+        self.profile_combo.addItem(tr("Custom"), "custom")
+        self.profile_combo.addItem(tr("High-quality demo"), "demo")
+        self.profile_combo.addItem(tr("General high quality"), "general")
+        self.profile_combo.addItem(tr("Small file"), "compact")
+        self.profile_combo.addItem(tr("Compatibility first"), "compatible")
+        self.profile_combo.addItem(tr("Fixed bandwidth / streaming"), "streaming")
         self.profile_combo.setCurrentIndex(self.profile_combo.findData("demo"))
 
         self.quality_mode_combo = QComboBox()
         self.quality_value_spin = QSpinBox()
         self.speed_combo = QComboBox()
         for speed_id, label in SPEED_LABELS.items():
-            self.speed_combo.addItem(label, speed_id)
+            self.speed_combo.addItem(tr(label), speed_id)
         self.speed_combo.setCurrentIndex(self.speed_combo.findData("max_quality"))
 
         self.resolution_combo = QComboBox()
         for height, label in RESOLUTION_OPTIONS.items():
-            self.resolution_combo.addItem(label, height)
+            self.resolution_combo.addItem(tr(label), height)
 
         self.frame_rate_spin = QSpinBox()
         self.frame_rate_spin.setRange(0, 240)
-        self.frame_rate_spin.setSpecialValueText("保持源帧率")
+        self.frame_rate_spin.setSpecialValueText(tr("Keep source frame rate"))
         self.frame_rate_spin.setSuffix(" fps")
         self.frame_rate_spin.setValue(30)
 
@@ -592,17 +637,17 @@ class MainWindow(QMainWindow):
         self.gop_spin = QSpinBox()
         self.gop_spin.setRange(1, 30)
         self.gop_spin.setValue(10)
-        self.gop_spin.setSuffix(" 秒")
+        self.gop_spin.setSuffix(tr(" seconds"))
 
         fields = (
-            ("快速方案", self.profile_combo, 0, 0),
-            ("质量类型", self.quality_mode_combo, 0, 1),
-            ("质量值 / 码率", self.quality_value_spin, 0, 2),
-            ("速度与质量", self.speed_combo, 2, 0),
-            ("分辨率", self.resolution_combo, 2, 1),
-            ("帧率", self.frame_rate_spin, 2, 2),
-            ("像素位深", self.pixel_depth_combo, 4, 0),
-            ("关键帧间隔", self.gop_spin, 4, 1),
+            (tr("Quick profile"), self.profile_combo, 0, 0),
+            (tr("Quality mode"), self.quality_mode_combo, 0, 1),
+            (tr("Quality value / bitrate"), self.quality_value_spin, 0, 2),
+            (tr("Speed and quality"), self.speed_combo, 2, 0),
+            (tr("Resolution"), self.resolution_combo, 2, 1),
+            (tr("Frame rate"), self.frame_rate_spin, 2, 2),
+            (tr("Pixel depth"), self.pixel_depth_combo, 4, 0),
+            (tr("Keyframe interval"), self.gop_spin, 4, 1),
         )
         for label, widget, row, column in fields:
             quality_controls.addWidget(
@@ -618,7 +663,7 @@ class MainWindow(QMainWindow):
         quality_layout.addWidget(self.quality_hint, 2, 0, 1, 2)
         layout.addWidget(quality_card)
 
-        audio_card, audio_layout = self._new_card("音频与发布")
+        audio_card, audio_layout = self._new_card(tr("Audio and publishing"))
         audio_controls = QGridLayout()
         audio_controls.setHorizontalSpacing(16)
         self.audio_combo = QComboBox()
@@ -626,8 +671,12 @@ class MainWindow(QMainWindow):
         self.audio_bitrate_spin.setRange(32, 512)
         self.audio_bitrate_spin.setValue(128)
         self.audio_bitrate_spin.setSuffix(" kb/s")
-        audio_controls.addWidget(QLabel("音频模式", objectName="fieldLabel"), 0, 0)
-        audio_controls.addWidget(QLabel("音频码率", objectName="fieldLabel"), 0, 1)
+        audio_controls.addWidget(
+            QLabel(tr("Audio mode"), objectName="fieldLabel"), 0, 0
+        )
+        audio_controls.addWidget(
+            QLabel(tr("Audio bitrate"), objectName="fieldLabel"), 0, 1
+        )
         audio_controls.addWidget(self.audio_combo, 1, 0)
         audio_controls.addWidget(self.audio_bitrate_spin, 1, 1)
         audio_controls.setColumnStretch(0, 2)
@@ -636,34 +685,38 @@ class MainWindow(QMainWindow):
 
         options = QHBoxLayout()
         options.setSpacing(24)
-        self.overwrite_checkbox = QCheckBox("允许覆盖已有输出")
-        self.hash_checkbox = QCheckBox("完成后计算 SHA-256")
+        self.overwrite_checkbox = QCheckBox(tr("Allow overwriting an existing output"))
+        self.hash_checkbox = QCheckBox(tr("Calculate SHA-256 when finished"))
         options.addWidget(self.overwrite_checkbox)
         options.addWidget(self.hash_checkbox)
         options.addStretch(1)
         audio_layout.addLayout(options, 2, 0, 1, 2)
         layout.addWidget(audio_card)
 
-        progress_card, progress_layout = self._new_card("任务进度")
+        progress_card, progress_layout = self._new_card(tr("Task progress"))
         self.progress_bar = QProgressBar()
         self.progress_bar.setRange(0, 1000)
         self.progress_bar.setValue(0)
         self.progress_bar.setTextVisible(False)
         progress_layout.addWidget(self.progress_bar, 1, 0, 1, 2)
 
-        self.status_label = QLabel("等待硬件检测。", objectName="muted")
+        self.status_label = QLabel(
+            tr("Waiting for hardware detection."), objectName="muted"
+        )
         self.metrics_label = QLabel("0.0%", objectName="muted")
         self.metrics_label.setAlignment(Qt.AlignmentFlag.AlignRight)
         progress_layout.addWidget(self.status_label, 2, 0)
         progress_layout.addWidget(self.metrics_label, 2, 1)
 
         action_row = QHBoxLayout()
-        self.inspect_button = QPushButton("分析源文件")
-        self.preview_button = QPushButton("预览命令")
-        self.open_output_button = QPushButton("打开输出目录")
+        self.inspect_button = QPushButton(tr("Analyze source"))
+        self.preview_button = QPushButton(tr("Preview command"))
+        self.open_output_button = QPushButton(tr("Open output directory"))
         self.open_output_button.setEnabled(False)
-        self.cancel_button = QPushButton("取消", objectName="dangerButton")
-        self.start_button = QPushButton("开始压制", objectName="primaryButton")
+        self.cancel_button = QPushButton(tr("Cancel"), objectName="dangerButton")
+        self.start_button = QPushButton(
+            tr("Start compression"), objectName="primaryButton"
+        )
         self.start_button.setIcon(
             self.style().standardIcon(QStyle.StandardPixmap.SP_MediaPlay)
         )
@@ -679,11 +732,11 @@ class MainWindow(QMainWindow):
         progress_layout.addLayout(action_row, 3, 0, 1, 2)
         layout.addWidget(progress_card)
 
-        log_card, log_layout = self._new_card("运行日志")
+        log_card, log_layout = self._new_card(tr("Runtime log"))
         self.log_edit = QPlainTextEdit(objectName="log")
         self.log_edit.setReadOnly(True)
         self.log_edit.setPlaceholderText(
-            "设备探测、FFmpeg 命令与验证结果会显示在这里。"
+            tr("Device probing, FFmpeg commands, and verification results appear here.")
         )
         self.log_edit.setMinimumHeight(150)
         log_layout.addWidget(self.log_edit, 1, 0)
@@ -693,7 +746,10 @@ class MainWindow(QMainWindow):
         footer.addWidget(QLabel(f"{APP_NAME} {APP_VERSION}", objectName="muted"))
         footer.addStretch(1)
         footer.addWidget(
-            QLabel("Ctrl+R 开始 · Esc 取消 · 支持文件拖放", objectName="muted")
+            QLabel(
+                tr("Ctrl+R start · Esc cancel · File drag and drop supported"),
+                objectName="muted",
+            )
         )
         layout.addLayout(footer)
 
@@ -708,6 +764,7 @@ class MainWindow(QMainWindow):
         return card, card_layout
 
     def _connect_signals(self) -> None:
+        self.language_combo.currentIndexChanged.connect(self._language_changed)
         self.browse_input_button.clicked.connect(self.choose_input)
         self.browse_output_button.clicked.connect(self.choose_output)
         self.auto_output_button.clicked.connect(self.enable_automatic_output)
@@ -751,6 +808,23 @@ class MainWindow(QMainWindow):
         QShortcut(QKeySequence("Ctrl+R"), self).activated.connect(self.start_encode)
         QShortcut(QKeySequence("Escape"), self).activated.connect(self.cancel_encode)
 
+    @Slot()
+    def _language_changed(self) -> None:
+        language = str(self.language_combo.currentData() or get_language())
+        if language == get_language():
+            return
+        self.settings.setValue("ui/language", language)
+        language_name = LANGUAGE_NAMES[language]
+        QMessageBox.information(
+            self,
+            translate_for(language, "Language saved"),
+            translate_for(
+                language,
+                "Restart the application to use {language}.",
+                language=language_name,
+            ),
+        )
+
     def _initialize_tools(self, explicit_ffmpeg: str | None) -> None:
         try:
             self.tools = resolve_tools(explicit_ffmpeg)
@@ -758,17 +832,19 @@ class MainWindow(QMainWindow):
             message = str(error)
             self.tools = None
             self.capability_pill.setObjectName("warningPill")
-            self.capability_pill.setText("FFmpeg 不可用")
+            self.capability_pill.setText(tr("FFmpeg unavailable"))
             self.status_label.setText(message)
-            self.append_log(f"启动检查失败：{message}")
+            self.append_log(tr("Startup check failed: {message}", message=message))
             self.start_button.setEnabled(False)
             QTimer.singleShot(
                 100,
-                lambda: QMessageBox.critical(self, "FFmpeg 不可用", message),
+                lambda: QMessageBox.critical(self, tr("FFmpeg unavailable"), message),
             )
             return
-        mode = "内置" if self.tools.bundled else "系统"
-        self.append_log(f"FFmpeg（{mode}）：{self.tools.ffmpeg}")
+        mode = tr("bundled") if self.tools.bundled else tr("system")
+        self.append_log(
+            tr("FFmpeg ({mode}): {path}", mode=mode, path=self.tools.ffmpeg)
+        )
 
     def _restore_settings(self) -> None:
         geometry = self.settings.value("window/geometry-v2")
@@ -791,11 +867,14 @@ class MainWindow(QMainWindow):
         self.capability_pill.setObjectName("warningPill")
         self.capability_pill.style().unpolish(self.capability_pill)
         self.capability_pill.style().polish(self.capability_pill)
-        self.capability_pill.setText("正在检测设备与驱动")
+        self.capability_pill.setText(tr("Detecting devices and drivers"))
         self.hardware_summary.setText(
-            "正在枚举 CPU/GPU/NPU，并对每个候选编码器执行一帧初始化测试…"
+            tr(
+                "Enumerating CPU/GPU/NPU and running a one-frame initialization "
+                "test for every candidate encoder…"
+            )
         )
-        self.status_label.setText("正在检测硬件能力…")
+        self.status_label.setText(tr("Detecting hardware capabilities…"))
         self._set_running(False)
 
         thread = QThread(self)
@@ -827,9 +906,15 @@ class MainWindow(QMainWindow):
         self.capability_pill.style().unpolish(self.capability_pill)
         self.capability_pill.style().polish(self.capability_pill)
         self.capability_pill.setText(
-            f"{len(available_backends)} 个后端 · {available_encoders} 个编码器"
+            tr(
+                "{backends} backends · {encoders} encoders",
+                backends=len(available_backends),
+                encoders=available_encoders,
+            )
         )
-        self.status_label.setText("设备、驱动与编码器检测完成。")
+        self.status_label.setText(
+            tr("Device, driver, and encoder detection completed.")
+        )
         self.details_button.setEnabled(True)
         self._populate_backends()
         self._update_hardware_summary()
@@ -843,10 +928,10 @@ class MainWindow(QMainWindow):
         self.running_detection = False
         self.capability_report = None
         self.capability_pill.setObjectName("warningPill")
-        self.capability_pill.setText("硬件检测失败")
+        self.capability_pill.setText(tr("Hardware detection failed"))
         self.hardware_summary.setText(message)
         self.status_label.setText(message)
-        self.append_log(f"硬件检测失败：{message}")
+        self.append_log(tr("Hardware detection failed: {message}", message=message))
         self._set_running(False)
 
     @Slot()
@@ -928,7 +1013,7 @@ class MainWindow(QMainWindow):
         self.updating_controls = True
         self.quality_mode_combo.clear()
         for mode in modes:
-            self.quality_mode_combo.addItem(QUALITY_MODE_LABELS[mode], mode)
+            self.quality_mode_combo.addItem(tr(QUALITY_MODE_LABELS[mode]), mode)
         index = self.quality_mode_combo.findData(previous or "constant_quality")
         self.quality_mode_combo.setCurrentIndex(max(0, index))
         self.updating_controls = False
@@ -944,7 +1029,7 @@ class MainWindow(QMainWindow):
         self.updating_controls = True
         self.pixel_depth_combo.clear()
         for depth in depths:
-            label = "8-bit 4:2:0（兼容）" if depth == 8 else "10-bit 4:2:0"
+            label = tr("8-bit 4:2:0 (compatible)") if depth == 8 else "10-bit 4:2:0"
             self.pixel_depth_combo.addItem(label, depth)
         index = self.pixel_depth_combo.findData(previous)
         self.pixel_depth_combo.setCurrentIndex(max(0, index))
@@ -963,7 +1048,7 @@ class MainWindow(QMainWindow):
                 and not can_copy_audio(container.id, self.source_info.audio_codec)
             ):
                 continue
-            self.audio_combo.addItem(AUDIO_MODE_LABELS[mode], mode)
+            self.audio_combo.addItem(tr(AUDIO_MODE_LABELS[mode]), mode)
         preferred = previous
         index = self.audio_combo.findData(preferred)
         if index < 0:
@@ -1042,15 +1127,24 @@ class MainWindow(QMainWindow):
         self.quality_value_spin.setSuffix(f" {unit}")
         self.updating_controls = False
         if mode in {"vbr", "cbr"}:
-            direction = "码率越高通常越清晰、体积越大"
+            direction = tr(
+                "Higher bitrate usually means better quality and a larger file"
+            )
         elif higher_is_better:
-            direction = "数值越高质量越高、体积通常越大"
+            direction = tr(
+                "Higher values mean better quality and usually a larger file"
+            )
         else:
-            direction = "数值越低质量越高、体积通常越大"
+            direction = tr("Lower values mean better quality and usually a larger file")
         profile_id = str(self.profile_combo.currentData() or "custom")
         self.quality_hint.setText(
-            f"{PROFILE_DESCRIPTIONS[profile_id]}\n"
-            f"{encoder.ffmpeg_name} · {QUALITY_MODE_LABELS[str(mode)]}：{direction}。"
+            tr(
+                "{profile}\n{encoder} · {mode}: {direction}.",
+                profile=tr(PROFILE_DESCRIPTIONS[profile_id]),
+                encoder=encoder.ffmpeg_name,
+                mode=tr(QUALITY_MODE_LABELS[str(mode)]),
+                direction=direction,
+            )
         )
 
     @Slot()
@@ -1152,24 +1246,38 @@ class MainWindow(QMainWindow):
             backend for backend in self.capability_report.backends if backend.available
         ]
         npu = get_backend(self.capability_report, "npu")
-        backend_text = "；".join(
-            f"{backend.label}：{len(backend.available_encoder_ids)} 种编码"
+        backend_text = tr("; ").join(
+            tr(
+                "{backend}: {count} encoders",
+                backend=backend.label,
+                count=len(backend.available_encoder_ids),
+            )
             for backend in available
         )
         npu_text = (
-            f"NPU 驱动 {npu.driver_version}，但无 FFmpeg 视频编码后端"
+            tr(
+                "NPU driver {version}, but no FFmpeg video encoding backend",
+                version=npu.driver_version,
+            )
             if npu.device_present
-            else "未检测到可用于视频编码的 NPU 后端"
+            else tr("No NPU video encoding backend detected")
         )
-        self.hardware_summary.setText(f"{backend_text}\n{npu_text}。")
+        self.hardware_summary.setText(
+            tr("{backends}\n{npu}.", backends=backend_text, npu=npu_text)
+        )
 
     def _log_capabilities(self, report: CapabilityReport) -> None:
         self.append_log(report.ffmpeg_version)
         for backend in report.backends:
-            marker = "可用" if backend.available else "不可用"
+            marker = tr("available") if backend.available else tr("unavailable")
             self.append_log(
-                f"[{marker}] {backend.label} · 驱动 {backend.driver_version} · "
-                f"{backend.reason}"
+                tr(
+                    "[{state}] {backend} · driver {driver} · {reason}",
+                    state=marker,
+                    backend=backend.label,
+                    driver=backend.driver_version,
+                    reason=backend.reason,
+                )
             )
             for probe in backend.encoders:
                 spec = ENCODERS[probe.encoder_id]
@@ -1189,17 +1297,25 @@ class MainWindow(QMainWindow):
         for device in self.capability_report.devices:
             lines.append(
                 f"{device.device_type} | {device.name} | "
-                f"驱动 {device.driver_version} | "
-                f"状态 {device.status}"
+                + tr(
+                    "driver {driver} | status {status}",
+                    driver=device.driver_version,
+                    status=device.status,
+                )
             )
         lines.append("")
         for backend in self.capability_report.backends:
             lines.append(
-                f"{backend.label}\n  驱动：{backend.driver_version}\n  {backend.reason}"
+                tr(
+                    "{backend}\n  Driver: {driver}\n  {reason}",
+                    backend=backend.label,
+                    driver=backend.driver_version,
+                    reason=backend.reason,
+                )
             )
             for probe in backend.encoders:
                 spec = ENCODERS[probe.encoder_id]
-                marker = "通过" if probe.available else "失败"
+                marker = tr("passed") if probe.available else tr("failed")
                 lines.append(
                     f"    {spec.ffmpeg_name}: {marker} ({probe.elapsed_ms} ms) · "
                     f"{probe.detail}"
@@ -1207,22 +1323,27 @@ class MainWindow(QMainWindow):
                 for failure in probe.option_failures:
                     lines.append(f"      × {failure}")
         box = QMessageBox(self)
-        box.setWindowTitle("设备、驱动与编码器检测")
+        box.setWindowTitle(tr("Device, driver, and encoder detection"))
         box.setIcon(QMessageBox.Icon.Information)
-        box.setText("可用选项由设备枚举、FFmpeg 编译状态和一帧实际初始化共同决定。")
+        box.setText(
+            tr(
+                "Available options are determined by device enumeration, the "
+                "FFmpeg build, and a real one-frame initialization."
+            )
+        )
         box.setDetailedText("\n".join(lines))
         box.exec()
 
     def current_settings(self) -> CompressionSettings:
         encoder = self.selected_encoder()
         if encoder is None:
-            raise RuntimeError("没有可用的视频编码器。")
+            raise RuntimeError(tr("No video encoder is available."))
         quality_mode = self.quality_mode_combo.currentData()
         container_id = self.container_combo.currentData()
         backend_id = self.backend_combo.currentData()
         audio_mode = self.audio_combo.currentData()
         if not all((quality_mode, container_id, backend_id, audio_mode)):
-            raise RuntimeError("压制选项尚未准备完成。")
+            raise RuntimeError(tr("Compression options are not ready."))
         frame_rate = self.frame_rate_spin.value() or None
         return CompressionSettings(
             backend_id=str(backend_id),
@@ -1250,9 +1371,12 @@ class MainWindow(QMainWindow):
         )
         path, _ = QFileDialog.getOpenFileName(
             self,
-            "选择输入视频",
+            tr("Select input video"),
             start_directory,
-            "视频文件 (*.mp4 *.mkv *.mov *.avi *.webm *.m4v *.ts);;所有文件 (*.*)",
+            tr(
+                "Video files (*.mp4 *.mkv *.mov *.avi *.webm *.m4v *.ts);;"
+                "All files (*.*)"
+            ),
         )
         if path:
             self.set_input_path(path)
@@ -1267,9 +1391,9 @@ class MainWindow(QMainWindow):
         container = CONTAINERS[container_id]
         path, _ = QFileDialog.getSaveFileName(
             self,
-            "选择输出文件",
+            tr("Select output file"),
             suggested,
-            f"{container.label} (*{container.extension})",
+            f"{tr(container.label)} (*{container.extension})",
         )
         if path:
             if not path.lower().endswith(container.extension):
@@ -1294,12 +1418,12 @@ class MainWindow(QMainWindow):
         try:
             path = Path(raw).expanduser().resolve(strict=True)
             if not path.is_file():
-                raise ValueError(f"输入不是文件：{path}")
+                raise ValueError(tr("Input is not a file: {path}", path=path))
             info = probe_media(self.tools, path)
         except Exception as error:  # noqa: BLE001 - surface path/probe errors.
             self.source_path = None
             self.source_info = None
-            self.source_info_label.setText(f"无法读取：{error}")
+            self.source_info_label.setText(tr("Unable to read: {error}", error=error))
             self.status_label.setText(str(error))
             return
 
@@ -1309,21 +1433,30 @@ class MainWindow(QMainWindow):
         bitrate = (
             f"{info.video_bitrate / 1_000_000:.2f} Mb/s"
             if info.video_bitrate
-            else "未知码率"
+            else tr("Unknown bitrate")
         )
         audio = (
-            f"{info.audio_codec} / {info.audio_channels} 声道"
+            tr(
+                "{codec} / {channels} channels",
+                codec=info.audio_codec,
+                channels=info.audio_channels,
+            )
             if info.audio_codec
-            else "无音频"
+            else tr("No audio")
         )
         self.source_info_label.setText(
             f"{info.codec.upper()} {info.profile} · {info.pixel_format} · "
             f"{info.width}×{info.height} · {info.frame_rate} · "
-            f"{info.duration:.3f} 秒 · {info.size / 1024 / 1024:.3f} MiB · "
-            f"{bitrate} · {audio}"
+            + tr(
+                "{duration:.3f} seconds · {size:.3f} MiB · {bitrate} · {audio}",
+                duration=info.duration,
+                size=info.size / 1024 / 1024,
+                bitrate=bitrate,
+                audio=audio,
+            )
         )
-        self.status_label.setText("源文件分析完成。")
-        self.append_log(f"源文件：{path}")
+        self.status_label.setText(tr("Source analysis completed."))
+        self.append_log(tr("Source: {path}", path=path))
         self._populate_audio_modes()
         self._refresh_automatic_output(force=self.output_is_automatic)
 
@@ -1362,13 +1495,13 @@ class MainWindow(QMainWindow):
 
     def prepare_job(self) -> CompressionJob:
         if self.tools is None:
-            raise RuntimeError("FFmpeg 尚未就绪。")
+            raise RuntimeError(tr("FFmpeg is not ready."))
         if self.capability_report is None:
-            raise RuntimeError("硬件能力检测尚未完成。")
+            raise RuntimeError(tr("Hardware capability detection is not complete."))
         if self.source_path is None or self.source_info is None:
             self.inspect_source()
         if self.source_path is None:
-            raise ValueError("请选择可读取的输入视频。")
+            raise ValueError(tr("Select a readable input video."))
         return create_compression_job(
             tools=self.tools,
             input_path=self.source_path,
@@ -1384,10 +1517,12 @@ class MainWindow(QMainWindow):
         except Exception as error:  # noqa: BLE001 - show validation failures.
             self.show_error(str(error))
             return
-        self.append_log("命令预览（验证通过后才发布到最终路径）：")
+        self.append_log(
+            tr("Command preview (published to the final path only after verification):")
+        )
         self.append_log(command_for_display(job.command))
-        self.append_log(f"最终输出：{job.output_path}")
-        self.status_label.setText("命令预览已写入日志。")
+        self.append_log(tr("Final output: {path}", path=job.output_path))
+        self.status_label.setText(tr("Command preview written to the log."))
 
     @Slot()
     def start_encode(self) -> None:
@@ -1401,15 +1536,20 @@ class MainWindow(QMainWindow):
 
         self.progress_bar.setValue(0)
         self.metrics_label.setText("0.0%")
-        self.status_label.setText("正在启动压制…")
+        self.status_label.setText(tr("Starting compression…"))
         backend = get_backend(self.capability_report, job.settings.backend_id)  # type: ignore[arg-type]
         self.append_log(
-            f"开始：{backend.label} · {job.encoder.ffmpeg_name} · "
-            f"{QUALITY_MODE_LABELS[job.settings.quality_mode]} "
-            f"{job.settings.quality_value} · {SPEED_LABELS[job.settings.speed]}"
+            tr(
+                "Start: {backend} · {encoder} · {mode} {value} · {speed}",
+                backend=backend.label,
+                encoder=job.encoder.ffmpeg_name,
+                mode=tr(QUALITY_MODE_LABELS[job.settings.quality_mode]),
+                value=job.settings.quality_value,
+                speed=tr(SPEED_LABELS[job.settings.speed]),
+            )
         )
-        self.append_log(f"输入：{job.input_path}")
-        self.append_log(f"输出：{job.output_path}")
+        self.append_log(tr("Input: {path}", path=job.input_path))
+        self.append_log(tr("Output: {path}", path=job.output_path))
 
         thread = QThread(self)
         worker = EncodeWorker(self.tools, job)  # type: ignore[arg-type]
@@ -1436,7 +1576,7 @@ class MainWindow(QMainWindow):
     def cancel_encode(self) -> None:
         if not self.running_encode or self.encode_worker is None:
             return
-        self.status_label.setText("正在取消并清理临时输出…")
+        self.status_label.setText(tr("Cancelling and cleaning the partial output…"))
         self.cancel_button.setEnabled(False)
         self.encode_worker.request_cancel()
 
@@ -1454,16 +1594,19 @@ class MainWindow(QMainWindow):
         self.metrics_label.setText("100.0%")
         self.last_output_path = result.output_path
         self.open_output_button.setEnabled(True)
-        self.status_label.setText(f"完成：{result.output_path.name}")
+        self.status_label.setText(tr("Completed: {name}", name=result.output_path.name))
         self.append_log(
-            f"完成并验证通过：{result.output_path}\n"
+            f"{tr('Completed and verified: {path}', path=result.output_path)}\n"
             f"{result.media.codec.upper()} {result.media.profile} · "
             f"{result.media.pixel_format} · "
             f"{result.media.width}×{result.media.height} · "
             f"{result.media.frame_rate}\n"
             f"{result.output_size / 1024 / 1024:.3f} MiB · "
-            f"缩减 {result.reduction_percent:.2f}% · "
-            f"耗时 {result.elapsed_seconds:.2f} 秒"
+            + tr(
+                "Reduced by {percent:.2f}% · elapsed {seconds:.2f} seconds",
+                percent=result.reduction_percent,
+                seconds=result.elapsed_seconds,
+            )
         )
         if result.sha256:
             self.append_log(f"SHA-256：{result.sha256}")
@@ -1473,15 +1616,15 @@ class MainWindow(QMainWindow):
     def encode_failed(self, message: str) -> None:
         self.running_encode = False
         self._set_running(False)
-        self.status_label.setText(f"失败：{message}")
-        self.append_log(f"压制失败：{message}")
-        QMessageBox.critical(self, "压制失败", message)
+        self.status_label.setText(tr("Failed: {message}", message=message))
+        self.append_log(tr("Compression failed: {message}", message=message))
+        QMessageBox.critical(self, tr("Compression failed"), message)
 
     @Slot(str)
     def encode_cancelled(self, message: str) -> None:
         self.running_encode = False
         self._set_running(False)
-        self.status_label.setText("已取消；临时输出已清理。")
+        self.status_label.setText(tr("Cancelled; partial output removed."))
         self.append_log(message)
         if self.close_after_cancel:
             self.close_after_cancel = False
@@ -1495,6 +1638,7 @@ class MainWindow(QMainWindow):
     def _set_running(self, running: bool) -> None:
         editable = not running and not self.running_detection
         for widget in (
+            self.language_combo,
             self.input_edit,
             self.output_edit,
             self.browse_input_button,
@@ -1537,8 +1681,8 @@ class MainWindow(QMainWindow):
 
     def show_error(self, message: str) -> None:
         self.status_label.setText(message)
-        self.append_log(f"错误：{message}")
-        QMessageBox.warning(self, "无法开始", message)
+        self.append_log(tr("Error: {message}", message=message))
+        QMessageBox.warning(self, tr("Unable to start"), message)
 
     @Slot()
     def open_output_directory(self) -> None:
@@ -1563,8 +1707,11 @@ class MainWindow(QMainWindow):
         if self.running_encode:
             answer = QMessageBox.question(
                 self,
-                "取消正在进行的压制？",
-                "关闭窗口会取消 FFmpeg，并清理本次临时输出。",
+                tr("Cancel the active compression?"),
+                tr(
+                    "Closing the window cancels FFmpeg and removes this task's "
+                    "partial output."
+                ),
                 QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
                 QMessageBox.StandardButton.No,
             )
@@ -1597,7 +1744,9 @@ def choose_smoke_encoder(
         for encoder_id in backend.available_encoder_ids:
             if ENCODERS[encoder_id].codec_id == codec_id:
                 return backend, encoder_id
-    raise RuntimeError(f"没有可用的 {CODEC_LABELS[codec_id]} 编码器。")
+    raise RuntimeError(
+        tr("No {codec} encoder is available.", codec=CODEC_LABELS[codec_id])
+    )
 
 
 def run_smoke_encode(arguments: argparse.Namespace) -> int:
@@ -1670,6 +1819,7 @@ def write_diagnostics_report(
 ) -> None:
     report_data: dict[str, object] = {
         "app_version": APP_VERSION,
+        "language": get_language(),
         "module_file": __file__,
         "executable": sys.executable,
         "argv_0": sys.argv[0],
@@ -1796,6 +1946,11 @@ def parse_arguments() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("input", nargs="?", help="Initial input video path")
     parser.add_argument("--ffmpeg", help="Explicit path to ffmpeg.exe")
+    parser.add_argument(
+        "--language",
+        choices=tuple(LANGUAGE_NAMES),
+        help="Application language for this run",
+    )
     parser.add_argument("--self-test", action="store_true")
     parser.add_argument("--screenshot", help="Save the self-test window as an image")
     parser.add_argument(
@@ -1835,6 +1990,9 @@ def parse_arguments() -> argparse.Namespace:
 
 def main() -> int:
     arguments = parse_arguments()
+    settings = QSettings(ORGANIZATION_NAME, APP_NAME)
+    saved_language = settings.value("ui/language", "")
+    set_language(arguments.language or saved_language or system_language())
     try:
         if arguments.diagnostics_report:
             write_diagnostics_report(arguments.diagnostics_report, arguments.ffmpeg)
@@ -1861,7 +2019,9 @@ def main() -> int:
     except Exception as error:  # noqa: BLE001 - final boundary for windowed builds.
         try:
             error_app = QApplication.instance() or QApplication([])
-            QMessageBox.critical(None, "Video Compressor 启动失败", str(error))
+            QMessageBox.critical(
+                None, tr("Video Compressor failed to start"), str(error)
+            )
             error_app.processEvents()
         except Exception:  # noqa: BLE001, S110 - no console exists in the EXE.
             pass
