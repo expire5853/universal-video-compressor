@@ -4,7 +4,8 @@ Tagged releases are built on `windows-latest` by `.github/workflows/windows-rele
 
 ## Prepare a release
 
-1. Update the version in `pyproject.toml` and `src/video_compressor/__init__.py`.
+1. Update `__version__` in `src/video_compressor/__init__.py`; Hatchling reads
+   the project version from that file.
 2. Move the relevant entries from `Unreleased` to a dated section in `CHANGELOG.md`.
 3. Run the locked validation suite:
 
@@ -24,7 +25,7 @@ Tagged releases are built on `windows-latest` by `.github/workflows/windows-rele
 5. Commit the release metadata and create an annotated tag matching the project version:
 
    ```powershell
-   git tag -a v2.0.0 -m "Universal Video Compressor 2.0.0"
+   git tag -a v0.1.0 -m "Universal Video Compressor 0.1.0"
    git push origin main --follow-tags
    ```
 

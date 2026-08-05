@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "universal-video-compressor"
-version = "2.0.0"
+dynamic = ["version"]
 description = "A Windows video compression workbench with runtime-verified CPU, GPU, and NPU capability detection."
 readme = "README.md"
 requires-python = ">=3.12,<3.14"
@@ -38,6 +38,9 @@ build = [
   "Pillow==12.1.1",
   "zstandard==0.23.0",
 ]
+
+[tool.hatch.version]
+path = "src/video_compressor/__init__.py"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/video_compressor"]

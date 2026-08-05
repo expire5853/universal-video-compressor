@@ -11,7 +11,7 @@ body:
     id: version
     attributes:
       label: Application version
-      placeholder: "2.0.0, source checkout, or commit SHA"
+      placeholder: "0.1.0, source checkout, or commit SHA"
     validations:
       required: true
   - type: input

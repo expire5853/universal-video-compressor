@@ -59,7 +59,7 @@ powershell -ExecutionPolicy Bypass `
 
 默认产物：`artifacts\onefile\VideoCompressor.exe`。
 
-默认构建会把 FFmpeg 和 FFprobe 嵌入 EXE。首次运行解压到 `%LOCALAPPDATA%\UniversalVideoCompressor\2.0.0\bundled-ffmpeg`，后续启动复用缓存。使用 `-BundleFfmpeg:$false` 可以显著减小体积，并使用独立的 `system-ffmpeg` 缓存，但目标机器必须自行安装 FFmpeg。
+默认构建会把 FFmpeg 和 FFprobe 嵌入 EXE。首次运行解压到 `%LOCALAPPDATA%\UniversalVideoCompressor\0.1.0\bundled-ffmpeg`，后续启动复用缓存。使用 `-BundleFfmpeg:$false` 可以显著减小体积，并使用独立的 `system-ffmpeg` 缓存，但目标机器必须自行安装 FFmpeg。
 
 ## 非交互验证
 

@@ -194,7 +194,6 @@ wheels = [
 
 [[package]]
 name = "universal-video-compressor"
-version = "2.0.0"
 source = { editable = "." }
 dependencies = [
     { name = "pyside6" },

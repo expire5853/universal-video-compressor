@@ -6,12 +6,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
-### Changed
-
-- Reorganized the repository into an installable `src`-layout Python project.
-- Added automated lint, test, Windows build, and GitHub release workflows.
-
-## [2.0.0] - 2026-08-05
+## [0.1.0] - 2026-08-05
 
 ### Added
 
@@ -22,3 +17,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - Constant-quality, CQP, VBR, CBR, resolution, frame-rate, GOP, and audio controls.
 - Atomic output publishing, cancellation, output verification, and optional SHA-256 calculation.
 - Nuitka OneFile build with optional bundled FFmpeg and FFprobe.
+
+### Changed
+
+- Reorganized the repository into an installable `src`-layout Python project.
+- Added automated lint, test, Windows build, and GitHub release workflows.
