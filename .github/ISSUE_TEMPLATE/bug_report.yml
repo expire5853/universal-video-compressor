@@ -1,0 +1,66 @@
+name: Bug report
+description: Report a reproducible failure or incorrect capability result.
+title: "[Bug]: "
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for reporting a problem. Remove private paths and media metadata before posting logs.
+  - type: input
+    id: version
+    attributes:
+      label: Application version
+      placeholder: "2.0.0, source checkout, or commit SHA"
+    validations:
+      required: true
+  - type: input
+    id: windows
+    attributes:
+      label: Windows version
+      placeholder: "Windows 11 24H2"
+    validations:
+      required: true
+  - type: textarea
+    id: hardware
+    attributes:
+      label: Hardware and drivers
+      description: List the CPU, GPU/NPU, and relevant driver versions.
+    validations:
+      required: true
+  - type: textarea
+    id: settings
+    attributes:
+      label: Encoding settings
+      description: Include backend, codec, container, quality mode, pixel depth, resolution, frame rate, and audio mode.
+    validations:
+      required: true
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Reproduction steps
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+    validations:
+      required: true
+  - type: textarea
+    id: diagnostics
+    attributes:
+      label: Sanitized diagnostics and log
+      description: Paste the relevant capability report and final log lines. Do not attach private media.
+      render: text
+    validations:
+      required: true
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Checklist
+      options:
+        - label: I searched existing issues.
+          required: true
+        - label: I removed private paths and sensitive metadata.
+          required: true

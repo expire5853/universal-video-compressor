@@ -1,0 +1,33 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.python-version.local
+.venv/
+.tox/
+.nox/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.coverage
+htmlcov/
+
+# Packaging and Nuitka
+artifacts/
+build/
+dist/
+*.build/
+*.dist/
+*.onefile-build/
+
+# Editors and operating systems
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db
+Desktop.ini
+
+# Local diagnostics and encoded samples
+*.partial
+diagnostics*.json
+smoke-output.*
