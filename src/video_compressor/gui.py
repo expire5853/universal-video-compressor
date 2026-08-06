@@ -62,6 +62,7 @@ from PySide6.QtWidgets import (
     QSizePolicy,
     QSpinBox,
     QStyle,
+    QToolButton,
     QVBoxLayout,
     QWidget,
 )
@@ -180,6 +181,15 @@ QLabel#hintPanel {
     border: 1px solid #223043;
     border-radius: 8px;
     padding: 9px 11px;
+}
+
+QLabel#workflowBanner {
+    color: #b8fff6;
+    background: #102925;
+    border: 1px solid #20564f;
+    border-radius: 8px;
+    padding: 9px 12px;
+    font-weight: 600;
 }
 
 QLineEdit, QComboBox, QSpinBox, QPlainTextEdit {
@@ -302,6 +312,19 @@ QPushButton#dangerButton:disabled {
     color: #596575;
     background: #121820;
     border-color: #222d3b;
+}
+
+QToolButton#sectionToggle {
+    min-height: 28px;
+    color: #8deee2;
+    background: transparent;
+    border: none;
+    padding: 2px 0;
+    font-weight: 650;
+}
+
+QToolButton#sectionToggle:hover {
+    color: #c0fff7;
 }
 
 QComboBox:disabled, QSpinBox:disabled, QLineEdit:disabled {
@@ -443,6 +466,40 @@ def responsive_column_count(width: int, maximum: int) -> int:
     if width >= 720:
         return min(2, maximum)
     return 1
+
+
+def capability_details_text(report: CapabilityReport) -> str:
+    """Render the complete diagnostic report shown outside primary selectors."""
+    lines: list[str] = []
+    for device in report.devices:
+        lines.append(
+            f"{device.device_type} | {device.name} | "
+            + tr(
+                "driver {driver} | status {status}",
+                driver=device.driver_version,
+                status=device.status,
+            )
+        )
+    lines.append("")
+    for backend in report.backends:
+        lines.append(
+            tr(
+                "{backend}\n  Driver: {driver}\n  {reason}",
+                backend=backend.label,
+                driver=backend.driver_version,
+                reason=backend.reason,
+            )
+        )
+        for probe in backend.encoders:
+            spec = ENCODERS[probe.encoder_id]
+            marker = tr("passed") if probe.available else tr("failed")
+            lines.append(
+                f"    {spec.ffmpeg_name}: {marker} ({probe.elapsed_ms} ms) · "
+                f"{probe.detail}"
+            )
+            for failure in probe.option_failures:
+                lines.append(f"      × {failure}")
+    return "\n".join(lines)
 
 
 PROFILE_DESCRIPTIONS: dict[str, str] = {
@@ -649,34 +706,47 @@ class MainWindow(QMainWindow):
         layout.setContentsMargins(28, 24, 28, 24)
         layout.setSpacing(16)
 
-        header = QHBoxLayout()
-        title_column = QVBoxLayout()
-        title_column.setSpacing(2)
-        title_column.addWidget(
-            QLabel(tr("Universal video compression workbench"), objectName="appTitle")
+        header = QGridLayout()
+        header.setHorizontalSpacing(12)
+        header.setVerticalSpacing(2)
+        header.addWidget(
+            QLabel(tr("Universal video compression workbench"), objectName="appTitle"),
+            0,
+            0,
         )
-        title_column.addWidget(
+        header.addWidget(
             QLabel(
                 tr("CPU · GPU · NPU capability detection · H.264 / HEVC / AV1 / VP9"),
                 objectName="appSubtitle",
-            )
+            ),
+            1,
+            0,
         )
-        header.addLayout(title_column)
-        header.addStretch(1)
-        header.addWidget(QLabel(tr("Language"), objectName="fieldLabel"))
+        header.addWidget(QLabel(tr("Language"), objectName="fieldLabel"), 1, 1)
         self.language_combo = ChoiceComboBox()
         for language_id, language_name in LANGUAGE_NAMES.items():
             self.language_combo.addItem(language_name, language_id)
         self.language_combo.setCurrentIndex(
             max(0, self.language_combo.findData(get_language()))
         )
-        header.addWidget(self.language_combo)
+        header.addWidget(self.language_combo, 1, 2)
         self.capability_pill = QLabel(
             tr("Preparing hardware detection"), objectName="warningPill"
         )
         self.capability_pill.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        header.addWidget(self.capability_pill)
+        header.addWidget(self.capability_pill, 0, 1, 1, 2)
+        header.setColumnStretch(0, 1)
         layout.addLayout(header)
+
+        self.workflow_banner = QLabel(
+            tr(
+                "1  Select a video  ·  2  Finish hardware detection  ·  "
+                "3  Choose a quick profile  ·  4  Start compression"
+            ),
+            objectName="workflowBanner",
+        )
+        self.workflow_banner.setWordWrap(True)
+        layout.addWidget(self.workflow_banner)
 
         source_card, source_layout = self._new_card(tr("Source and output"))
         self.input_edit = QLineEdit()
@@ -732,7 +802,19 @@ class MainWindow(QMainWindow):
 
         self.backend_combo = ChoiceComboBox()
         self.backend_combo.setMinimumContentsLength(30)
+        backend_help = tr(
+            "Only CPU and GPU devices that passed a real FFmpeg encoding test are "
+            "listed. NPU information is shown as detection status only."
+        )
+        self.backend_combo.setToolTip(backend_help)
+        self.backend_combo.setAccessibleDescription(backend_help)
         self.codec_combo = ChoiceComboBox()
+        codec_help = tr(
+            "Friendly codec names are shown here. Technical FFmpeg encoder names "
+            "remain available in Detection details."
+        )
+        self.codec_combo.setToolTip(codec_help)
+        self.codec_combo.setAccessibleDescription(codec_help)
         self.container_combo = ChoiceComboBox()
         for container in CONTAINERS.values():
             self.container_combo.addItem(tr(container.label), container.id)
@@ -766,13 +848,23 @@ class MainWindow(QMainWindow):
         self._place_labeled_fields(self.device_controls, self.device_fields, 3)
         device_layout.addLayout(self.device_controls, 1, 0, 1, 2)
 
+        self.device_selector_note = QLabel(
+            tr(
+                "Only verified encoding choices appear above. Unavailable devices, "
+                "drivers, and technical test results remain in Detection details."
+            ),
+            objectName="muted",
+        )
+        self.device_selector_note.setWordWrap(True)
+        device_layout.addWidget(self.device_selector_note, 2, 0, 1, 2)
+
         detection_buttons = QHBoxLayout()
         detection_buttons.addWidget(self.auto_detect_checkbox)
         detection_buttons.addStretch(1)
         detection_buttons.addWidget(self.refresh_button)
         detection_buttons.addWidget(self.details_button)
         detection_buttons.addWidget(self.cancel_detection_button)
-        device_layout.addLayout(detection_buttons, 2, 0, 1, 2)
+        device_layout.addLayout(detection_buttons, 3, 0, 1, 2)
 
         self.hardware_summary = QLabel(
             tr(
@@ -782,7 +874,7 @@ class MainWindow(QMainWindow):
             objectName="hintPanel",
         )
         self.hardware_summary.setWordWrap(True)
-        device_layout.addWidget(self.hardware_summary, 3, 0, 1, 2)
+        device_layout.addWidget(self.hardware_summary, 4, 0, 1, 2)
         layout.addWidget(device_card)
 
         quality_card, quality_layout = self._new_card(tr("Video and quality"))
@@ -822,8 +914,18 @@ class MainWindow(QMainWindow):
         self.gop_spin.setValue(10)
         self.gop_spin.setSuffix(tr(" seconds"))
 
-        self.quality_fields = (
+        self.basic_quality_fields = (
             (QLabel(tr("Quick profile"), objectName="fieldLabel"), self.profile_combo),
+            (
+                QLabel(tr("Resolution"), objectName="fieldLabel"),
+                self.resolution_combo,
+            ),
+            (
+                QLabel(tr("Frame rate"), objectName="fieldLabel"),
+                self.frame_rate_spin,
+            ),
+        )
+        self.advanced_quality_fields = (
             (
                 QLabel(tr("Quality mode"), objectName="fieldLabel"),
                 self.quality_mode_combo,
@@ -837,14 +939,6 @@ class MainWindow(QMainWindow):
                 self.speed_combo,
             ),
             (
-                QLabel(tr("Resolution"), objectName="fieldLabel"),
-                self.resolution_combo,
-            ),
-            (
-                QLabel(tr("Frame rate"), objectName="fieldLabel"),
-                self.frame_rate_spin,
-            ),
-            (
                 QLabel(tr("Pixel depth"), objectName="fieldLabel"),
                 self.pixel_depth_combo,
             ),
@@ -853,12 +947,32 @@ class MainWindow(QMainWindow):
                 self.gop_spin,
             ),
         )
+        self.quality_fields = self.basic_quality_fields + self.advanced_quality_fields
         self._place_labeled_fields(self.quality_controls, self.quality_fields, 3)
         quality_layout.addLayout(self.quality_controls, 1, 0, 1, 2)
 
+        self.advanced_toggle_button = QToolButton(objectName="sectionToggle")
+        self.advanced_toggle_button.setCheckable(True)
+        self.advanced_toggle_button.setChecked(False)
+        self.advanced_toggle_button.setArrowType(Qt.ArrowType.RightArrow)
+        self.advanced_toggle_button.setToolButtonStyle(
+            Qt.ToolButtonStyle.ToolButtonTextBesideIcon
+        )
+        self.advanced_toggle_button.setText(tr("Show advanced video settings"))
+        self.advanced_toggle_button.setToolTip(
+            tr(
+                "Quick profiles already configure these options. Expand them only "
+                "when you need manual control."
+            )
+        )
+        for label, widget in self.advanced_quality_fields:
+            label.setVisible(False)
+            widget.setVisible(False)
+        quality_layout.addWidget(self.advanced_toggle_button, 2, 0, 1, 2)
+
         self.quality_hint = QLabel(objectName="hintPanel")
         self.quality_hint.setWordWrap(True)
-        quality_layout.addWidget(self.quality_hint, 2, 0, 1, 2)
+        quality_layout.addWidget(self.quality_hint, 3, 0, 1, 2)
         layout.addWidget(quality_card)
 
         audio_card, audio_layout = self._new_card(tr("Audio and publishing"))
@@ -1040,6 +1154,7 @@ class MainWindow(QMainWindow):
         self.pixel_depth_combo.currentIndexChanged.connect(self._pixel_depth_changed)
         self.quality_mode_combo.currentIndexChanged.connect(self._quality_mode_changed)
         self.audio_combo.currentIndexChanged.connect(self._audio_mode_changed)
+        self.advanced_toggle_button.toggled.connect(self._toggle_advanced_settings)
         self.profile_combo.activated.connect(self._profile_selected)
         self.inspect_button.clicked.connect(self.inspect_source)
         self.preview_button.clicked.connect(self.preview_command)
@@ -1391,27 +1506,52 @@ class MainWindow(QMainWindow):
         self.detection_worker = None
         self._set_running(False)
 
+    @Slot(bool)
+    def _toggle_advanced_settings(self, expanded: bool) -> None:
+        for label, widget in self.advanced_quality_fields:
+            label.setVisible(expanded)
+            widget.setVisible(expanded)
+        self.advanced_toggle_button.setArrowType(
+            Qt.ArrowType.DownArrow if expanded else Qt.ArrowType.RightArrow
+        )
+        self.advanced_toggle_button.setText(
+            tr("Hide advanced video settings")
+            if expanded
+            else tr("Show advanced video settings")
+        )
+        self._configure_quality_value()
+        QTimer.singleShot(0, self._update_responsive_layout)
+
     def _populate_backends(self) -> None:
         if self.capability_report is None:
             return
         previous = self.backend_combo.currentData()
+        available_backends = [
+            backend
+            for backend in self.capability_report.backends
+            if backend.available and backend.id != "npu"
+        ]
         self.updating_controls = True
         self.backend_combo.clear()
-        for backend in self.capability_report.backends:
-            prefix = "✓" if backend.available else "○"
-            self.backend_combo.addItem(f"{prefix} {backend.label}", backend.id)
+        self.backend_combo.setPlaceholderText(tr("No verified encoder available"))
+        for backend in available_backends:
+            self.backend_combo.addItem(backend.label, backend.id)
             index = self.backend_combo.count() - 1
-            item = self.backend_combo.model().item(index)
-            if item is not None:
-                item.setEnabled(backend.available)
+            self.backend_combo.setItemData(
+                index,
+                backend.reason,
+                Qt.ItemDataRole.ToolTipRole,
+            )
 
         target = str(previous) if previous else ""
         priorities = [target, "amd_amf", "nvidia_nvenc", "intel_qsv", "cpu"]
         for backend_id in priorities:
             index = self.backend_combo.findData(backend_id)
-            if index >= 0 and get_backend(self.capability_report, backend_id).available:
+            if index >= 0:
                 self.backend_combo.setCurrentIndex(index)
                 break
+        if not available_backends:
+            self.backend_combo.setCurrentIndex(-1)
         self.updating_controls = False
         self._populate_encoders()
 
@@ -1421,6 +1561,12 @@ class MainWindow(QMainWindow):
         backend_id = self.backend_combo.currentData()
         container_id = self.container_combo.currentData()
         if not backend_id or not container_id:
+            self.updating_controls = True
+            self.codec_combo.clear()
+            self.codec_combo.setPlaceholderText(tr("No verified codec available"))
+            self.pixel_depth_combo.clear()
+            self.quality_mode_combo.clear()
+            self.updating_controls = False
             return
         previous_encoder = self.codec_combo.currentData()
         previous_codec = (
@@ -1434,10 +1580,9 @@ class MainWindow(QMainWindow):
 
         self.updating_controls = True
         self.codec_combo.clear()
+        self.codec_combo.setPlaceholderText(tr("No verified codec available"))
         for spec in specs:
-            self.codec_combo.addItem(
-                f"{CODEC_LABELS[spec.codec_id]} · {spec.ffmpeg_name}", spec.id
-            )
+            self.codec_combo.addItem(CODEC_LABELS[spec.codec_id], spec.id)
         desired_codec = preferred_codec or previous_codec or "hevc"
         target_index = next(
             (
@@ -1593,7 +1738,7 @@ class MainWindow(QMainWindow):
             tr(
                 "{profile}\n{encoder} · {mode}: {direction}.",
                 profile=tr(PROFILE_DESCRIPTIONS[profile_id]),
-                encoder=encoder.ffmpeg_name,
+                encoder=CODEC_LABELS[encoder.codec_id],
                 mode=tr(QUALITY_MODE_LABELS[str(mode)]),
                 direction=direction,
             )
@@ -1696,28 +1841,41 @@ class MainWindow(QMainWindow):
         if self.capability_report is None:
             return
         available = [
-            backend for backend in self.capability_report.backends if backend.available
+            backend
+            for backend in self.capability_report.backends
+            if backend.available and backend.id != "npu"
         ]
         npu = get_backend(self.capability_report, "npu")
         backend_text = tr("; ").join(
             tr(
-                "{backend}: {count} encoders",
+                "{backend}: {count} codec options",
                 backend=backend.label,
                 count=len(backend.available_encoder_ids),
             )
             for backend in available
         )
+        verified_text = (
+            tr("Verified for compression: {backends}", backends=backend_text)
+            if backend_text
+            else tr("No CPU or GPU encoder passed the initialization test.")
+        )
+        hidden_text = tr(
+            "Unavailable CPU/GPU backends are hidden; open Detection details for "
+            "the device, driver, or initialization reason."
+        )
         npu_text = (
             tr(
-                "NPU driver {version}, but no FFmpeg video encoding backend",
-                version=npu.driver_version,
+                "NPU detected (driver {version}); status only, because no FFmpeg "
+                "video encoder is available.",
+                version=npu.driver_version or tr("Unknown"),
             )
             if npu.device_present
-            else tr("No NPU video encoding backend detected")
+            else tr(
+                "NPU not detected; NPU is status-only and is not offered as an "
+                "encoding device."
+            )
         )
-        self.hardware_summary.setText(
-            tr("{backends}\n{npu}.", backends=backend_text, npu=npu_text)
-        )
+        self.hardware_summary.setText(f"{verified_text}\n{hidden_text}\n{npu_text}")
 
     def _log_capabilities(self, report: CapabilityReport) -> None:
         self.append_log(report.ffmpeg_version)
@@ -1746,35 +1904,6 @@ class MainWindow(QMainWindow):
     def show_capability_details(self) -> None:
         if self.capability_report is None:
             return
-        lines: list[str] = []
-        for device in self.capability_report.devices:
-            lines.append(
-                f"{device.device_type} | {device.name} | "
-                + tr(
-                    "driver {driver} | status {status}",
-                    driver=device.driver_version,
-                    status=device.status,
-                )
-            )
-        lines.append("")
-        for backend in self.capability_report.backends:
-            lines.append(
-                tr(
-                    "{backend}\n  Driver: {driver}\n  {reason}",
-                    backend=backend.label,
-                    driver=backend.driver_version,
-                    reason=backend.reason,
-                )
-            )
-            for probe in backend.encoders:
-                spec = ENCODERS[probe.encoder_id]
-                marker = tr("passed") if probe.available else tr("failed")
-                lines.append(
-                    f"    {spec.ffmpeg_name}: {marker} ({probe.elapsed_ms} ms) · "
-                    f"{probe.detail}"
-                )
-                for failure in probe.option_failures:
-                    lines.append(f"      × {failure}")
         box = QMessageBox(self)
         box.setWindowTitle(tr("Device, driver, and encoder detection"))
         box.setIcon(QMessageBox.Icon.Information)
@@ -1784,7 +1913,7 @@ class MainWindow(QMainWindow):
                 "FFmpeg build, and a real one-frame initialization."
             )
         )
-        box.setDetailedText("\n".join(lines))
+        box.setDetailedText(capability_details_text(self.capability_report))
         box.exec()
 
     def current_settings(self) -> CompressionSettings:
@@ -2112,6 +2241,7 @@ class MainWindow(QMainWindow):
             not running
             and not self.running_detection
             and self.capability_report is not None
+            and bool(self.capability_report.available_encoder_ids)
         )
         for widget in (
             self.backend_combo,
@@ -2132,6 +2262,7 @@ class MainWindow(QMainWindow):
             self.preview_button,
         ):
             widget.setEnabled(settings_editable)
+        self.advanced_toggle_button.setEnabled(settings_editable)
 
         self.auto_detect_checkbox.setEnabled(not running)
         self.refresh_button.setEnabled(
@@ -2386,15 +2517,33 @@ def run_gui_self_test(
         return 10
 
     npu_index = window.backend_combo.findData("npu")
-    npu_item = window.backend_combo.model().item(npu_index) if npu_index >= 0 else None
-    if npu_item is None or npu_item.isEnabled():
+    if npu_index >= 0:
         window.close()
         return 6
+    if any(
+        not get_backend(
+            window.capability_report,
+            str(window.backend_combo.itemData(index)),
+        ).available
+        for index in range(window.backend_combo.count())
+    ):
+        window.close()
+        return 11
 
     selected_encoder = window.selected_encoder()
     if selected_encoder is None:
         window.close()
         return 7
+    if selected_encoder.ffmpeg_name in window.codec_combo.currentText():
+        window.close()
+        return 12
+    if any(
+        not widget.isHidden()
+        for field in window.advanced_quality_fields
+        for widget in field
+    ):
+        window.close()
+        return 13
     for depth in supported_pixel_depths(window.capability_report, selected_encoder.id):
         depth_index = window.pixel_depth_combo.findData(depth)
         if depth_index < 0:
@@ -2438,8 +2587,17 @@ def run_gui_self_test(
     if screenshot_path:
         destination = Path(screenshot_path).expanduser().resolve()
         destination.parent.mkdir(parents=True, exist_ok=True)
-        window.scroll_area.verticalScrollBar().setValue(0)
-        app.processEvents()
+        focused_widget = app.focusWidget()
+        if focused_widget is not None:
+            focused_widget.clearFocus()
+        window.scroll_area.setFocus(Qt.FocusReason.OtherFocusReason)
+        scroll_bar = window.scroll_area.verticalScrollBar()
+        for _ in range(2):
+            scroll_bar.setValue(scroll_bar.minimum())
+            app.processEvents()
+        if scroll_bar.value() != scroll_bar.minimum():
+            window.close()
+            return 14
         if not window.grab().save(str(destination)):
             window.close()
             return 5

@@ -52,7 +52,7 @@ The edition does not determine whether GPU acceleration works. AMD, NVIDIA, or I
 1. Download one EXE, or download and extract the matching ZIP when available.
 2. Run `VideoCompressor-Full.exe` or `VideoCompressor-Lite.exe`.
 3. Let device detection finish, or skip/cancel it and run **Detect now** when needed.
-4. Select a source video, choose the available format and quality options, then start compression.
+4. Select a source video, choose a verified encoding device and a quick profile, then start compression. Expand the advanced video settings only when you need manual control.
 
 The current executables are unsigned, so Windows SmartScreen may display a warning. Verify that the file came from this repository and check its SHA-256 value before allowing it to run.
 
@@ -61,7 +61,7 @@ The current executables are unsigned, so Windows SmartScreen may display a warni
 - Use CPU software encoding or a verified AMD, NVIDIA, or Intel GPU encoder.
 - Create H.264/AVC, H.265/HEVC, AV1, or VP9 video where the selected backend supports it.
 - Write MP4, MKV, WebM, or MOV files using compatible codec combinations.
-- Choose a quick profile or manually control quality mode, speed, resolution, frame rate, 8/10-bit output, and keyframe interval.
+- Start with a quick profile, or expand the optional advanced controls for quality mode, speed, resolution, frame rate, 8/10-bit output, and keyframe interval.
 - Copy compatible source audio, encode AAC/Opus/FLAC, or remove audio.
 - Preview the FFmpeg command before starting.
 - Write to a partial file, verify the output with FFprobe, and publish it atomically only after validation succeeds.
@@ -78,6 +78,8 @@ Seeing an encoder in `ffmpeg -encoders` is not enough. The application separatel
 | NVIDIA GPU | NVENC | H.264, HEVC, AV1 | NVIDIA device/driver and NVENC test succeed |
 | Intel GPU | QSV | H.264, HEVC, AV1, VP9 | Intel device/driver and QSV test succeed |
 | NPU | Runtime-specific | None in the bundled FFmpeg build | Shown for diagnostics, but not selectable for encoding |
+
+The main selectors contain only CPU/GPU backends that passed initialization and use friendly codec names. Unavailable backends, technical FFmpeg encoder names, and failure reasons remain available under **Detection details**. NPU results are shown as status information, never as a selectable encoding device.
 
 Quality modes and 8/10-bit combinations are tested independently. One failed combination is hidden without disabling combinations that do work.
 

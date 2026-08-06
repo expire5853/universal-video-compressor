@@ -46,7 +46,7 @@ The fixed task bar shows the current test, completed/total steps, elapsed time, 
 | Intel GPU | QSV | H.264, HEVC, AV1, VP9 |
 | NPU | FFmpeg-runtime dependent | Device and driver status only by default |
 
-An encoder appearing in `ffmpeg -encoders` does not prove that it works. The application disables an option when driver initialization, output creation, pixel-depth, geometry, muxing, or FFprobe verification fails.
+An encoder appearing in `ffmpeg -encoders` does not prove that it works. The application omits a CPU/GPU backend from the main selector when driver initialization, output creation, pixel-depth, geometry, muxing, or FFprobe verification fails. Open **Detection details** to see every detected device, technical encoder name, and failure reason. NPU detection is status-only because the current FFmpeg integration has no NPU video encoder.
 
 ## Formats and quality
 
@@ -64,7 +64,7 @@ Quality modes are translated to parameters supported by the selected backend:
 - target bitrate: VBR;
 - constant bitrate: CBR.
 
-The interface explains the direction of each quality value and dynamically hides modes that are unavailable for the selected encoder and pixel depth. Other settings include resolution, 1–240 fps, 8/10-bit output, keyframe interval, audio copy, AAC, Opus, FLAC, audio removal, and audio bitrate.
+The primary codec selector uses friendly format names; technical FFmpeg encoder names remain in **Detection details**. Quick profiles keep the most common choices visible, while quality mode/value, speed, pixel depth, and keyframe interval are collapsed under **Show advanced video settings** by default. The interface explains the direction of each quality value and dynamically hides modes that are unavailable for the selected encoder and pixel depth. Other settings include resolution, 1–240 fps, audio copy, AAC, Opus, FLAC, audio removal, and audio bitrate.
 
 Choice fields have a visible arrow area, and numeric fields have separate plus and minus buttons. To prevent accidental changes while scrolling the page, the mouse wheel changes either type of field only after that control has focus. Task progress and the main action buttons remain fixed at the bottom of the window while the settings page scrolls.
 
