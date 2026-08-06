@@ -30,6 +30,12 @@ Open a video directly:
 uv run video-compressor "C:\Videos\demo.mp4"
 ```
 
+## Hardware detection lifecycle
+
+Automatic detection starts after a two-second grace period. During that time, choose **Skip startup detection** to defer it, or turn off **Detect automatically on startup** to keep it paused on future launches. Detection must finish before compression can start, but source selection and analysis remain available in the background.
+
+The fixed task bar shows the current test, completed/total steps, elapsed time, and an estimated remaining time. Choose **Cancel detection** to terminate the active FFmpeg or device-enumeration process. Cancelling an initial scan applies no partial results; cancelling or failing a later refresh keeps the last complete report active.
+
 ## Encoding devices
 
 | Device | Backend | Candidate encoders |

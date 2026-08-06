@@ -1,14 +1,18 @@
 from __future__ import annotations
 
 import os
+import time
 import unittest
+from pathlib import Path
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
 from PySide6.QtWidgets import QApplication
 
+from video_compressor.core import ToolPaths
 from video_compressor.gui import (
     ChoiceComboBox,
+    DetectionWorker,
     MainWindow,
     StepSpinBox,
     responsive_column_count,
@@ -24,6 +28,9 @@ class _TestMainWindow(MainWindow):
 
     def _initialize_tools(self, _explicit_ffmpeg: str | None) -> None:
         self.tools = None
+
+    def _save_settings(self) -> None:
+        pass
 
 
 class _IgnoredWheelEvent:
@@ -132,6 +139,63 @@ class ResponsiveLayoutTests(unittest.TestCase):
             self.assertEqual(window._responsive_device_columns, 3)
             self.assertEqual(window._responsive_quality_columns, 3)
         finally:
+            window.close()
+
+
+class DetectionLifecycleTests(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls) -> None:
+        set_language("en")
+
+    def test_scheduled_detection_can_be_skipped_before_it_starts(self) -> None:
+        window = _TestMainWindow()
+        try:
+            window.tools = ToolPaths(Path("ffmpeg.exe"), Path("ffprobe.exe"))
+            window._schedule_startup_detection()
+
+            self.assertTrue(window.pending_detection)
+            self.assertTrue(window.startup_detection_timer.isActive())
+            self.assertTrue(window.input_edit.isEnabled())
+            self.assertFalse(window.backend_combo.isEnabled())
+            self.assertFalse(window.cancel_detection_button.isHidden())
+
+            window.cancel_detection()
+
+            self.assertFalse(window.pending_detection)
+            self.assertFalse(window.startup_detection_timer.isActive())
+            self.assertTrue(window.cancel_detection_button.isHidden())
+            self.assertIn("paused", window.status_label.text().lower())
+        finally:
+            window.close()
+
+    def test_active_detection_exposes_progress_and_accepts_cancellation(self) -> None:
+        window = _TestMainWindow()
+        try:
+            tools = ToolPaths(Path("ffmpeg.exe"), Path("ffprobe.exe"))
+            worker = DetectionWorker(tools)
+            window.running_detection = True
+            window.detection_worker = worker
+            window.detection_started_at = time.monotonic() - 2
+            window.cancel_detection_button.setVisible(True)
+            window._set_running(False)
+
+            window._detection_progress(10, 100, "Testing encoder")
+
+            self.assertEqual(window.progress_bar.value(), 100)
+            self.assertIn("10/100", window.metrics_label.text())
+            self.assertIn("Testing encoder", window.hardware_summary.text())
+            self.assertTrue(window.input_edit.isEnabled())
+            self.assertFalse(window.backend_combo.isEnabled())
+            self.assertTrue(window.cancel_button.isEnabled())
+
+            window.cancel_active_operation()
+
+            self.assertTrue(worker.cancel_event.is_set())
+            self.assertFalse(window.cancel_detection_button.isEnabled())
+            self.assertFalse(window.cancel_button.isEnabled())
+        finally:
+            window.running_detection = False
+            window.detection_worker = None
             window.close()
 
 

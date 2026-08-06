@@ -297,6 +297,13 @@ QPushButton:disabled {
     border-color: #222d3b;
 }
 
+QPushButton#primaryButton:disabled,
+QPushButton#dangerButton:disabled {
+    color: #596575;
+    background: #121820;
+    border-color: #222d3b;
+}
+
 QComboBox:disabled, QSpinBox:disabled, QLineEdit:disabled {
     color: #667384;
     background: #10161e;
@@ -498,21 +505,33 @@ def build_app_icon(size: int = 256) -> QIcon:
 
 
 class DetectionWorker(QObject):
+    progress = Signal(int, int, str)
     succeeded = Signal(object)
     failed = Signal(str)
+    cancelled = Signal(str)
 
     def __init__(self, tools: ToolPaths) -> None:
         super().__init__()
         self.tools = tools
+        self.cancel_event = threading.Event()
 
     @Slot()
     def run(self) -> None:
         try:
-            report = detect_capabilities(self.tools)
+            report = detect_capabilities(
+                self.tools,
+                self.cancel_event,
+                self.progress.emit,
+            )
+        except InterruptedError as error:
+            self.cancelled.emit(str(error))
         except Exception as error:  # noqa: BLE001 - report failures to the GUI.
             self.failed.emit(str(error))
         else:
             self.succeeded.emit(report)
+
+    def request_cancel(self) -> None:
+        self.cancel_event.set()
 
 
 class EncodeWorker(QObject):
@@ -586,10 +605,16 @@ class MainWindow(QMainWindow):
         self.detection_worker: DetectionWorker | None = None
         self.running_encode = False
         self.running_detection = False
+        self.pending_detection = False
+        self.previous_capability_report: CapabilityReport | None = None
+        self.detection_started_at = 0.0
         self.close_after_cancel = False
         self.output_is_automatic = True
         self.setting_output = False
         self.updating_controls = False
+        self.startup_detection_timer = QTimer(self)
+        self.startup_detection_timer.setSingleShot(True)
+        self.startup_detection_timer.timeout.connect(self.refresh_capabilities)
 
         self._build_ui()
         self._connect_signals()
@@ -598,7 +623,7 @@ class MainWindow(QMainWindow):
         self._set_running(False)
 
         if self.tools is not None:
-            QTimer.singleShot(0, self.refresh_capabilities)
+            self._configure_startup_detection()
         if initial_input:
             QTimer.singleShot(0, lambda: self.set_input_path(initial_input))
 
@@ -714,9 +739,21 @@ class MainWindow(QMainWindow):
         self.container_combo.setCurrentIndex(
             max(0, self.container_combo.findData("mp4"))
         )
-        self.refresh_button = QPushButton(tr("Detect again"))
+        self.refresh_button = QPushButton(tr("Detect now"))
         self.details_button = QPushButton(tr("Detection details"))
         self.details_button.setEnabled(False)
+        self.cancel_detection_button = QPushButton(
+            tr("Cancel detection"), objectName="dangerButton"
+        )
+        self.cancel_detection_button.setVisible(False)
+        self.auto_detect_checkbox = QCheckBox(tr("Detect automatically on startup"))
+        self.auto_detect_checkbox.setChecked(True)
+        self.auto_detect_checkbox.setToolTip(
+            tr(
+                "Turn this off to leave detection paused at the next startup; "
+                "you can still start it manually."
+            )
+        )
 
         self.device_fields = (
             (
@@ -730,9 +767,11 @@ class MainWindow(QMainWindow):
         device_layout.addLayout(self.device_controls, 1, 0, 1, 2)
 
         detection_buttons = QHBoxLayout()
+        detection_buttons.addWidget(self.auto_detect_checkbox)
         detection_buttons.addStretch(1)
         detection_buttons.addWidget(self.refresh_button)
         detection_buttons.addWidget(self.details_button)
+        detection_buttons.addWidget(self.cancel_detection_button)
         device_layout.addLayout(detection_buttons, 2, 0, 1, 2)
 
         self.hardware_summary = QLabel(
@@ -991,6 +1030,10 @@ class MainWindow(QMainWindow):
         self.output_edit.textEdited.connect(self._mark_output_manual)
         self.refresh_button.clicked.connect(self.refresh_capabilities)
         self.details_button.clicked.connect(self.show_capability_details)
+        self.cancel_detection_button.clicked.connect(self.cancel_detection)
+        self.auto_detect_checkbox.toggled.connect(
+            self._auto_detection_preference_changed
+        )
         self.backend_combo.currentIndexChanged.connect(self._backend_changed)
         self.container_combo.currentIndexChanged.connect(self._container_changed)
         self.codec_combo.currentIndexChanged.connect(self._encoder_changed)
@@ -1001,7 +1044,7 @@ class MainWindow(QMainWindow):
         self.inspect_button.clicked.connect(self.inspect_source)
         self.preview_button.clicked.connect(self.preview_command)
         self.start_button.clicked.connect(self.start_encode)
-        self.cancel_button.clicked.connect(self.cancel_encode)
+        self.cancel_button.clicked.connect(self.cancel_active_operation)
         self.open_output_button.clicked.connect(self.open_output_directory)
 
         for combo in (
@@ -1025,7 +1068,9 @@ class MainWindow(QMainWindow):
             spin.valueChanged.connect(self._refresh_automatic_output)
 
         QShortcut(QKeySequence("Ctrl+R"), self).activated.connect(self.start_encode)
-        QShortcut(QKeySequence("Escape"), self).activated.connect(self.cancel_encode)
+        QShortcut(QKeySequence("Escape"), self).activated.connect(
+            self.cancel_active_operation
+        )
 
     @Slot()
     def _language_changed(self) -> None:
@@ -1069,20 +1114,97 @@ class MainWindow(QMainWindow):
         geometry = self.settings.value("window/geometry-v2")
         if geometry:
             self.restoreGeometry(geometry)
+        auto_detect = self.settings.value("detection/auto_start", True)
+        self.auto_detect_checkbox.setChecked(
+            str(auto_detect).strip().lower() not in {"0", "false", "no"}
+        )
         last_directory = self.settings.value("paths/last_directory", "")
         self.last_directory = Path(str(last_directory)) if last_directory else None
 
     def _save_settings(self) -> None:
         self.settings.setValue("window/geometry-v2", self.saveGeometry())
+        self.settings.setValue(
+            "detection/auto_start", self.auto_detect_checkbox.isChecked()
+        )
         if self.source_path:
             self.settings.setValue("paths/last_directory", str(self.source_path.parent))
 
+    def _set_capability_pill(self, object_name: str, text: str) -> None:
+        self.capability_pill.setObjectName(object_name)
+        self.capability_pill.style().unpolish(self.capability_pill)
+        self.capability_pill.style().polish(self.capability_pill)
+        self.capability_pill.setText(text)
+
+    def _configure_startup_detection(self) -> None:
+        if self.auto_detect_checkbox.isChecked():
+            self._schedule_startup_detection()
+        else:
+            self._set_detection_deferred()
+
+    def _schedule_startup_detection(self) -> None:
+        if self.tools is None or self.capability_report is not None:
+            return
+        self.startup_detection_timer.stop()
+        self.pending_detection = True
+        self._set_capability_pill("warningPill", tr("Detection scheduled"))
+        self.status_label.setText(tr("Hardware detection will start shortly."))
+        self.hardware_summary.setText(
+            tr("You can select a source now or skip this startup check.")
+        )
+        self.progress_bar.setValue(0)
+        self.metrics_label.setText(tr("Starting soon"))
+        self.refresh_button.setText(tr("Detect now"))
+        self.cancel_detection_button.setText(tr("Skip startup detection"))
+        self.cancel_detection_button.setVisible(True)
+        self.cancel_detection_button.setEnabled(True)
+        self._set_running(False)
+        self.startup_detection_timer.start(2_000)
+
+    def _set_detection_deferred(self) -> None:
+        self.startup_detection_timer.stop()
+        self.pending_detection = False
+        self._set_capability_pill("warningPill", tr("Detection paused"))
+        self.status_label.setText(
+            tr("Hardware detection is paused. Select a source or choose Detect now.")
+        )
+        self.hardware_summary.setText(
+            tr("Detection is required before compression can start.")
+        )
+        self.progress_bar.setValue(0)
+        self.metrics_label.setText(tr("Not started"))
+        self.refresh_button.setText(tr("Detect now"))
+        self.cancel_detection_button.setVisible(False)
+        self._set_running(False)
+
+    @Slot(bool)
+    def _auto_detection_preference_changed(self, enabled: bool) -> None:
+        self.settings.setValue("detection/auto_start", enabled)
+        if self.tools is None or self.capability_report is not None:
+            return
+        if not enabled and self.pending_detection:
+            self.cancel_detection()
+        elif (
+            enabled
+            and not self.pending_detection
+            and not self.running_detection
+            and not self.running_encode
+        ):
+            self._schedule_startup_detection()
+
     @Slot()
     def refresh_capabilities(self) -> None:
-        if self.tools is None or self.running_detection or self.running_encode:
+        if (
+            self.tools is None
+            or self.running_detection
+            or self.running_encode
+            or self.detection_thread is not None
+        ):
             return
+        self.startup_detection_timer.stop()
+        self.pending_detection = False
+        self.previous_capability_report = self.capability_report
         self.running_detection = True
-        self.capability_report = None
+        self.detection_started_at = time.monotonic()
         self.capability_pill.setObjectName("warningPill")
         self.capability_pill.style().unpolish(self.capability_pill)
         self.capability_pill.style().polish(self.capability_pill)
@@ -1094,16 +1216,25 @@ class MainWindow(QMainWindow):
             )
         )
         self.status_label.setText(tr("Detecting hardware capabilities…"))
+        self.progress_bar.setValue(0)
+        self.metrics_label.setText(tr("Estimating remaining time…"))
+        self.refresh_button.setText(tr("Detecting…"))
+        self.cancel_detection_button.setText(tr("Cancel detection"))
+        self.cancel_detection_button.setVisible(True)
+        self.cancel_detection_button.setEnabled(True)
         self._set_running(False)
 
         thread = QThread(self)
         worker = DetectionWorker(self.tools)
         worker.moveToThread(thread)
         thread.started.connect(worker.run)
+        worker.progress.connect(self._detection_progress)
         worker.succeeded.connect(self._detection_succeeded)
         worker.failed.connect(self._detection_failed)
+        worker.cancelled.connect(self._detection_cancelled)
         worker.succeeded.connect(thread.quit)
         worker.failed.connect(thread.quit)
+        worker.cancelled.connect(thread.quit)
         thread.finished.connect(worker.deleteLater)
         thread.finished.connect(self._detection_thread_finished)
         thread.finished.connect(thread.deleteLater)
@@ -1111,10 +1242,72 @@ class MainWindow(QMainWindow):
         self.detection_worker = worker
         thread.start()
 
+    @Slot()
+    def cancel_detection(self) -> None:
+        if self.pending_detection:
+            self._set_detection_deferred()
+            self.append_log(tr("Startup hardware detection was skipped."))
+            return
+        if not self.running_detection or self.detection_worker is None:
+            return
+        self.status_label.setText(tr("Cancelling hardware detection…"))
+        self.hardware_summary.setText(
+            tr("Stopping the active encoder test and preserving previous results…")
+        )
+        self.cancel_detection_button.setEnabled(False)
+        self.cancel_button.setEnabled(False)
+        self.detection_worker.request_cancel()
+
+    @Slot(int, int, str)
+    def _detection_progress(self, completed: int, total: int, status: str) -> None:
+        if not self.running_detection or total <= 0:
+            return
+        current = min(max(completed, 0), total)
+        elapsed = max(0.0, time.monotonic() - self.detection_started_at)
+        self.progress_bar.setValue(round(current / total * 1000))
+        if current <= 0:
+            metrics = tr(
+                "{current}/{total} · {elapsed:.1f}s elapsed · estimating…",
+                current=current,
+                total=total,
+                elapsed=elapsed,
+            )
+        elif current < total:
+            remaining = elapsed / current * (total - current)
+            metrics = tr(
+                "{current}/{total} · {elapsed:.1f}s elapsed · about "
+                "{remaining:.1f}s remaining",
+                current=current,
+                total=total,
+                elapsed=elapsed,
+                remaining=remaining,
+            )
+        else:
+            metrics = tr(
+                "{current}/{total} · {elapsed:.1f}s elapsed",
+                current=current,
+                total=total,
+                elapsed=elapsed,
+            )
+        self.metrics_label.setText(metrics)
+        self.status_label.setText(status)
+        self.hardware_summary.setText(
+            tr(
+                "Step {current} of {total}: {status}\nYou can select a source while "
+                "detection continues, or cancel this check.",
+                current=current,
+                total=total,
+                status=status,
+            )
+        )
+
     @Slot(object)
     def _detection_succeeded(self, report: CapabilityReport) -> None:
         self.capability_report = report
         self.running_detection = False
+        self.previous_capability_report = None
+        self.cancel_detection_button.setVisible(False)
+        self.refresh_button.setText(tr("Detect again"))
         available_backends = [
             backend for backend in report.backends if backend.available
         ]
@@ -1145,18 +1338,58 @@ class MainWindow(QMainWindow):
     @Slot(str)
     def _detection_failed(self, message: str) -> None:
         self.running_detection = False
-        self.capability_report = None
-        self.capability_pill.setObjectName("warningPill")
-        self.capability_pill.setText(tr("Hardware detection failed"))
-        self.hardware_summary.setText(message)
-        self.status_label.setText(message)
+        self.capability_report = self.previous_capability_report
+        self.previous_capability_report = None
+        self.cancel_detection_button.setVisible(False)
+        self.refresh_button.setText(
+            tr("Detect again")
+            if self.capability_report is not None
+            else tr("Detect now")
+        )
+        if self.capability_report is None:
+            self._set_capability_pill("warningPill", tr("Hardware detection failed"))
+            self.hardware_summary.setText(message)
+        else:
+            self._set_capability_pill("statusPill", tr("Previous results retained"))
+            self._update_hardware_summary()
+        self.status_label.setText(
+            tr("Hardware detection failed: {message}", message=message)
+        )
         self.append_log(tr("Hardware detection failed: {message}", message=message))
+        self._set_running(False)
+
+    @Slot(str)
+    def _detection_cancelled(self, message: str) -> None:
+        elapsed = max(0.0, time.monotonic() - self.detection_started_at)
+        self.running_detection = False
+        self.capability_report = self.previous_capability_report
+        self.previous_capability_report = None
+        self.cancel_detection_button.setVisible(False)
+        self.refresh_button.setText(
+            tr("Detect again")
+            if self.capability_report is not None
+            else tr("Detect now")
+        )
+        self.metrics_label.setText(
+            tr("Cancelled after {seconds:.1f}s", seconds=elapsed)
+        )
+        if self.capability_report is None:
+            self._set_capability_pill("warningPill", tr("Detection cancelled"))
+            self.hardware_summary.setText(
+                tr("No results were applied. Choose Detect now when you are ready.")
+            )
+        else:
+            self._set_capability_pill("statusPill", tr("Previous results retained"))
+            self._update_hardware_summary()
+        self.status_label.setText(tr("Hardware detection cancelled."))
+        self.append_log(tr("Hardware detection cancelled: {message}", message=message))
         self._set_running(False)
 
     @Slot()
     def _detection_thread_finished(self) -> None:
         self.detection_thread = None
         self.detection_worker = None
+        self._set_running(False)
 
     def _populate_backends(self) -> None:
         if self.capability_report is None:
@@ -1373,6 +1606,7 @@ class MainWindow(QMainWindow):
             mode in {"aac", "opus"}
             and not self.running_encode
             and not self.running_detection
+            and self.capability_report is not None
         )
 
     @Slot()
@@ -1792,6 +2026,13 @@ class MainWindow(QMainWindow):
         thread.start()
 
     @Slot()
+    def cancel_active_operation(self) -> None:
+        if self.pending_detection or self.running_detection:
+            self.cancel_detection()
+            return
+        self.cancel_encode()
+
+    @Slot()
     def cancel_encode(self) -> None:
         if not self.running_encode or self.encode_worker is None:
             return
@@ -1855,7 +2096,7 @@ class MainWindow(QMainWindow):
         self.encode_worker = None
 
     def _set_running(self, running: bool) -> None:
-        editable = not running and not self.running_detection
+        source_editable = not running
         for widget in (
             self.language_combo,
             self.input_edit,
@@ -1863,10 +2104,19 @@ class MainWindow(QMainWindow):
             self.browse_input_button,
             self.browse_output_button,
             self.auto_output_button,
+            self.inspect_button,
+        ):
+            widget.setEnabled(source_editable)
+
+        settings_editable = (
+            not running
+            and not self.running_detection
+            and self.capability_report is not None
+        )
+        for widget in (
             self.backend_combo,
             self.codec_combo,
             self.container_combo,
-            self.refresh_button,
             self.profile_combo,
             self.quality_mode_combo,
             self.quality_value_spin,
@@ -1879,18 +2129,35 @@ class MainWindow(QMainWindow):
             self.audio_bitrate_spin,
             self.overwrite_checkbox,
             self.hash_checkbox,
-            self.inspect_button,
             self.preview_button,
         ):
-            widget.setEnabled(editable)
-        self.details_button.setEnabled(editable and self.capability_report is not None)
-        self.start_button.setEnabled(
-            editable
+            widget.setEnabled(settings_editable)
+
+        self.auto_detect_checkbox.setEnabled(not running)
+        self.refresh_button.setEnabled(
+            not running
+            and not self.running_detection
+            and self.detection_thread is None
             and self.tools is not None
-            and self.capability_report is not None
+        )
+        self.details_button.setEnabled(
+            not running and self.capability_report is not None
+        )
+        self.start_button.setEnabled(
+            settings_editable
+            and self.tools is not None
             and bool(self.capability_report.available_encoder_ids)
         )
-        self.cancel_button.setEnabled(running)
+        self.cancel_button.setEnabled(
+            running or self.running_detection or self.pending_detection
+        )
+        if self.pending_detection:
+            self.cancel_detection_button.setVisible(True)
+            self.cancel_detection_button.setEnabled(not running)
+        elif self.running_detection:
+            self.cancel_detection_button.setVisible(True)
+        else:
+            self.cancel_detection_button.setVisible(False)
         self._audio_mode_changed()
 
     def append_log(self, message: str) -> None:
@@ -1942,8 +2209,16 @@ class MainWindow(QMainWindow):
             event.ignore()
             return
         if self.running_detection and self.detection_thread is not None:
+            if self.detection_worker is not None:
+                self.detection_worker.request_cancel()
             self.detection_thread.quit()
-            self.detection_thread.wait(20_000)
+            if not self.detection_thread.wait(5_000):
+                self.status_label.setText(
+                    tr("Waiting for the active hardware test to stop…")
+                )
+                event.ignore()
+                return
+        self.startup_detection_timer.stop()
         self._save_settings()
         event.accept()
 
@@ -2088,6 +2363,8 @@ def run_gui_self_test(
     window.showNormal()
     window.resize(1120, 960)
     window.show()
+    if window.tools is not None and window.capability_report is None:
+        window.refresh_capabilities()
 
     deadline = time.monotonic() + 40
     app.processEvents()
@@ -2100,6 +2377,13 @@ def run_gui_self_test(
     if window.capability_report is None or not window.start_button.isEnabled():
         window.close()
         return 2
+    if (
+        window.pending_detection
+        or window.progress_bar.value() != 1000
+        or window.cancel_detection_button.isVisible()
+    ):
+        window.close()
+        return 10
 
     npu_index = window.backend_combo.findData("npu")
     npu_item = window.backend_combo.model().item(npu_index) if npu_index >= 0 else None

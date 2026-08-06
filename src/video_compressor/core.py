@@ -174,6 +174,8 @@ class EncodeResult:
 ProgressCallback = Callable[[float, str], None]
 LogCallback = Callable[[str], None]
 ProcessCallback = Callable[[subprocess.Popen[str] | None], None]
+DetectionProgressCallback = Callable[[int, int, str], None]
+ProbeProgressCallback = Callable[[int, int, str], None]
 
 
 CODEC_LABELS: dict[str, str] = {
@@ -559,27 +561,94 @@ def resolve_tools(explicit_ffmpeg: str | None = None) -> ToolPaths:
 def run_capture(
     command: list[str],
     timeout: float = 30.0,
+    *,
+    cancel_event: threading.Event | None = None,
 ) -> subprocess.CompletedProcess[str]:
-    return subprocess.run(
+    if cancel_event is not None and cancel_event.is_set():
+        raise InterruptedError(tr("Operation cancelled."))
+    if cancel_event is None:
+        return subprocess.run(
+            command,
+            check=False,
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            creationflags=windows_creation_flags(),
+            timeout=timeout,
+        )
+
+    process = subprocess.Popen(
         command,
-        check=False,
-        capture_output=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
         text=True,
         encoding="utf-8",
         errors="replace",
         creationflags=windows_creation_flags(),
-        timeout=timeout,
     )
+    deadline = time.monotonic() + timeout
+    while True:
+        if cancel_event.is_set():
+            if process.poll() is None:
+                with suppress(OSError):
+                    process.terminate()
+            try:
+                process.communicate(timeout=2)
+            except subprocess.TimeoutExpired:
+                with suppress(OSError):
+                    process.kill()
+                process.communicate()
+            raise InterruptedError(tr("Operation cancelled."))
+
+        remaining = deadline - time.monotonic()
+        if remaining <= 0:
+            with suppress(OSError):
+                process.kill()
+            stdout, stderr = process.communicate()
+            raise subprocess.TimeoutExpired(
+                command,
+                timeout,
+                output=stdout,
+                stderr=stderr,
+            )
+        try:
+            stdout, stderr = process.communicate(timeout=min(0.1, remaining))
+        except subprocess.TimeoutExpired:
+            continue
+        return subprocess.CompletedProcess(
+            command,
+            process.returncode,
+            stdout,
+            stderr,
+        )
 
 
-def ffmpeg_version(tools: ToolPaths) -> str:
-    result = run_capture([str(tools.ffmpeg), "-hide_banner", "-version"])
+def _raise_if_cancelled(cancel_event: threading.Event | None) -> None:
+    if cancel_event is not None and cancel_event.is_set():
+        raise InterruptedError(tr("Operation cancelled."))
+
+
+def ffmpeg_version(
+    tools: ToolPaths,
+    cancel_event: threading.Event | None = None,
+) -> str:
+    result = run_capture(
+        [str(tools.ffmpeg), "-hide_banner", "-version"],
+        cancel_event=cancel_event,
+    )
     first_line = (result.stdout or result.stderr).splitlines()
     return first_line[0].strip() if first_line else tr("FFmpeg (unknown version)")
 
 
-def list_ffmpeg_encoders(tools: ToolPaths) -> frozenset[str]:
-    result = run_capture([str(tools.ffmpeg), "-hide_banner", "-encoders"])
+def list_ffmpeg_encoders(
+    tools: ToolPaths,
+    cancel_event: threading.Event | None = None,
+) -> frozenset[str]:
+    result = run_capture(
+        [str(tools.ffmpeg), "-hide_banner", "-encoders"],
+        cancel_event=cancel_event,
+    )
     if result.returncode != 0:
         raise RuntimeError(
             result.stderr.strip() or tr("Unable to read the FFmpeg encoder list.")
@@ -602,7 +671,11 @@ def parse_rate(rate: str) -> float:
         return 0.0
 
 
-def probe_media(tools: ToolPaths, path: Path) -> MediaInfo:
+def probe_media(
+    tools: ToolPaths,
+    path: Path,
+    cancel_event: threading.Event | None = None,
+) -> MediaInfo:
     command = [
         str(tools.ffprobe),
         "-v",
@@ -616,7 +689,7 @@ def probe_media(tools: ToolPaths, path: Path) -> MediaInfo:
         "json",
         str(path),
     ]
-    result = run_capture(command)
+    result = run_capture(command, cancel_event=cancel_event)
     if result.returncode != 0:
         detail = result.stderr.strip() or tr("ffprobe returned no details")
         raise RuntimeError(
@@ -673,7 +746,10 @@ def _powershell_executable() -> str | None:
     return shutil.which("powershell.exe") or shutil.which("pwsh.exe")
 
 
-def detect_windows_devices() -> tuple[DeviceInfo, ...]:
+def detect_windows_devices(
+    cancel_event: threading.Event | None = None,
+) -> tuple[DeviceInfo, ...]:
+    _raise_if_cancelled(cancel_event)
     if os.name != "nt":
         processor = platform.processor() or platform.machine() or "Unknown CPU"
         return (DeviceInfo("CPU", "Unknown", processor, "N/A", "", "OK", ""),)
@@ -720,6 +796,7 @@ $npus = @(Get-CimInstance Win32_PnPSignedDriver | Where-Object {
         result = run_capture(
             [powershell, "-NoProfile", "-NonInteractive", "-EncodedCommand", encoded],
             timeout=20,
+            cancel_event=cancel_event,
         )
         payload = json.loads(result.stdout)
         devices = payload.get("devices", [])
@@ -737,6 +814,8 @@ $npus = @(Get-CimInstance Win32_PnPSignedDriver | Where-Object {
             )
             for item in devices
         )
+    except InterruptedError:
+        raise
     except (json.JSONDecodeError, OSError, subprocess.SubprocessError):
         processor = os.environ.get("PROCESSOR_IDENTIFIER", "Unknown CPU")
         return (DeviceInfo("CPU", "Unknown", processor, "N/A", "", "OK", ""),)
@@ -777,7 +856,9 @@ def _probe_case(
     quality_mode: str,
     width: int,
     height: int,
+    cancel_event: threading.Event | None = None,
 ) -> tuple[bool, str]:
+    _raise_if_cancelled(cancel_event)
     _, _, quality_value, _, _ = quality_value_properties(spec, quality_mode)
     settings = CompressionSettings(
         backend_id=spec.backend_id,
@@ -821,13 +902,13 @@ def _probe_case(
         *_quality_arguments(spec, settings),
         str(output_path),
     ]
-    result = run_capture(command, timeout=15)
+    result = run_capture(command, timeout=15, cancel_event=cancel_event)
     if result.returncode != 0:
         return False, _best_error_line(
             f"{result.stderr}\n{result.stdout}", result.returncode
         )
 
-    media = probe_media(tools, output_path)
+    media = probe_media(tools, output_path, cancel_event)
     if media.codec != spec.codec_id:
         return False, tr(
             "Expected {expected}, got {actual}",
@@ -855,59 +936,65 @@ def _probe_case(
     return True, tr("Passed")
 
 
-def probe_encoder(tools: ToolPaths, spec: EncoderSpec) -> EncoderProbe:
+def probe_encoder(
+    tools: ToolPaths,
+    spec: EncoderSpec,
+    cancel_event: threading.Event | None = None,
+    progress_callback: ProbeProgressCallback | None = None,
+) -> EncoderProbe:
     started = time.monotonic()
     supported: list[str] = []
     failures: list[str] = []
+    cases = [
+        (8, "constant_quality", 1920, 1080),
+        *(
+            (depth, mode, 256, 144)
+            for depth in spec.pixel_depths
+            for mode in spec.quality_modes
+            if (depth, mode) != (8, "constant_quality")
+        ),
+    ]
     try:
         with tempfile.TemporaryDirectory(prefix="video-compressor-probe-") as folder:
             probe_folder = Path(folder)
-            representative_ok, representative_detail = _probe_case(
-                tools,
-                spec,
-                probe_folder,
-                8,
-                "constant_quality",
-                1920,
-                1080,
-            )
-            if not representative_ok:
-                elapsed_ms = round((time.monotonic() - started) * 1000)
-                return EncoderProbe(
-                    spec.id,
-                    False,
-                    tr(
-                        "1080p encode validation failed: {detail}",
-                        detail=representative_detail,
-                    ),
-                    elapsed_ms,
-                    (),
-                    (
-                        tr(
-                            "8-bit/constant quality: {detail}",
-                            detail=representative_detail,
-                        ),
-                    ),
+            for index, (depth, mode, width, height) in enumerate(cases):
+                _raise_if_cancelled(cancel_event)
+                status = tr(
+                    "Testing {encoder}: {depth}-bit {mode}",
+                    encoder=spec.ffmpeg_name,
+                    depth=depth,
+                    mode=tr(QUALITY_MODE_LABELS[mode]),
                 )
-            supported.append(_probe_option_key(8, "constant_quality"))
-
-            cases = [
-                (depth, mode)
-                for depth in spec.pixel_depths
-                for mode in spec.quality_modes
-                if (depth, mode) != (8, "constant_quality")
-            ]
-            for depth, mode in cases:
+                if progress_callback is not None:
+                    progress_callback(index, len(cases), status)
                 ok, detail = _probe_case(
                     tools,
                     spec,
                     probe_folder,
                     depth,
                     mode,
-                    256,
-                    144,
+                    width,
+                    height,
+                    cancel_event,
                 )
+                if progress_callback is not None:
+                    progress_callback(index + 1, len(cases), status)
                 label = f"{depth}-bit/{tr(QUALITY_MODE_LABELS[mode])}"
+                if index == 0 and not ok:
+                    elapsed_ms = round((time.monotonic() - started) * 1000)
+                    return EncoderProbe(
+                        spec.id,
+                        False,
+                        tr("1080p encode validation failed: {detail}", detail=detail),
+                        elapsed_ms,
+                        (),
+                        (
+                            tr(
+                                "8-bit/constant quality: {detail}",
+                                detail=detail,
+                            ),
+                        ),
+                    )
                 if ok:
                     supported.append(_probe_option_key(depth, mode))
                 else:
@@ -917,6 +1004,8 @@ def probe_encoder(tools: ToolPaths, spec: EncoderSpec) -> EncoderProbe:
                 count=len(supported),
             )
             available = True
+    except InterruptedError:
+        raise
     except subprocess.TimeoutExpired:
         available = False
         detail = tr("Initialization test exceeded 15 seconds")
@@ -934,9 +1023,26 @@ def probe_encoder(tools: ToolPaths, spec: EncoderSpec) -> EncoderProbe:
     )
 
 
-def detect_capabilities(tools: ToolPaths) -> CapabilityReport:
-    devices = detect_windows_devices()
-    compiled = list_ffmpeg_encoders(tools)
+def detect_capabilities(
+    tools: ToolPaths,
+    cancel_event: threading.Event | None = None,
+    progress_callback: DetectionProgressCallback | None = None,
+) -> CapabilityReport:
+    total_steps = 3 + sum(
+        len(spec.pixel_depths) * len(spec.quality_modes) for spec in ENCODERS.values()
+    )
+
+    def report_progress(completed: int, status: str) -> None:
+        if progress_callback is not None:
+            progress_callback(completed, total_steps, status)
+
+    _raise_if_cancelled(cancel_event)
+    report_progress(0, tr("Scanning CPU, GPU, and NPU devices…"))
+    devices = detect_windows_devices(cancel_event)
+    report_progress(1, tr("Reading the FFmpeg encoder list…"))
+    compiled = list_ffmpeg_encoders(tools, cancel_event)
+    completed_steps = 2
+    report_progress(completed_steps, tr("Preparing encoder validation…"))
     backends: list[BackendCapability] = []
 
     for backend_id, (device_type, vendor, backend_name) in BACKEND_METADATA.items():
@@ -950,6 +1056,8 @@ def detect_capabilities(tools: ToolPaths) -> CapabilityReport:
         probes: list[EncoderProbe] = []
 
         for spec in specs:
+            _raise_if_cancelled(cancel_event)
+            probe_steps = len(spec.pixel_depths) * len(spec.quality_modes)
             if spec.ffmpeg_name not in compiled:
                 probes.append(
                     EncoderProbe(
@@ -958,6 +1066,14 @@ def detect_capabilities(tools: ToolPaths) -> CapabilityReport:
                         tr("This FFmpeg build does not include this encoder"),
                         0,
                     )
+                )
+                completed_steps += probe_steps
+                report_progress(
+                    completed_steps,
+                    tr(
+                        "Skipping {encoder}: unavailable on this system",
+                        encoder=spec.ffmpeg_name,
+                    ),
                 )
             elif not device_present:
                 probes.append(
@@ -968,8 +1084,39 @@ def detect_capabilities(tools: ToolPaths) -> CapabilityReport:
                         0,
                     )
                 )
+                completed_steps += probe_steps
+                report_progress(
+                    completed_steps,
+                    tr(
+                        "Skipping {encoder}: unavailable on this system",
+                        encoder=spec.ffmpeg_name,
+                    ),
+                )
             else:
-                probes.append(probe_encoder(tools, spec))
+                probe_start = completed_steps
+
+                def encoder_progress(
+                    completed: int,
+                    _total: int,
+                    status: str,
+                    *,
+                    start: int = probe_start,
+                ) -> None:
+                    report_progress(start + completed, status)
+
+                probes.append(
+                    probe_encoder(
+                        tools,
+                        spec,
+                        cancel_event,
+                        encoder_progress,
+                    )
+                )
+                completed_steps += probe_steps
+                report_progress(
+                    completed_steps,
+                    tr("Finished testing {encoder}", encoder=spec.ffmpeg_name),
+                )
 
         available = any(probe.available for probe in probes)
         backend_label = tr(backend_name)
@@ -1069,8 +1216,13 @@ def detect_capabilities(tools: ToolPaths) -> CapabilityReport:
         )
     )
 
+    _raise_if_cancelled(cancel_event)
+    report_progress(completed_steps, tr("Reading the FFmpeg version…"))
+    version = ffmpeg_version(tools, cancel_event)
+    completed_steps += 1
+    report_progress(completed_steps, tr("Hardware detection completed."))
     return CapabilityReport(
-        ffmpeg_version=ffmpeg_version(tools),
+        ffmpeg_version=version,
         devices=devices,
         compiled_encoders=tuple(sorted(compiled)),
         backends=tuple(backends),
