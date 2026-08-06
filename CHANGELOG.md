@@ -6,6 +6,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-08-06
+
 ### Added
 
 - Added skippable startup detection, determinate per-encoder progress, elapsed/remaining time, active cancellation, and a persisted automatic-detection preference.
