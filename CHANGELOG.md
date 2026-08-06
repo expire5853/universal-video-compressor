@@ -8,6 +8,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Added
 
+- Added skippable startup detection, determinate per-encoder progress, elapsed/remaining time, active cancellation, and a persisted automatic-detection preference.
 - Added Python 3.13 CI coverage, Dependabot updates, CodeQL analysis, and GitHub build-provenance attestations.
 - Added self-contained Full and Lite ZIP downloads with documentation and third-party notices.
 - Added a reusable release verifier for ZIP contents, checksums, application languages, and bundled/system FFmpeg resolution.
@@ -23,6 +24,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Changed
 
+- Keep source selection available during background detection and retain the last complete capability report when a refresh is cancelled or fails.
 - Make dropdown and numeric controls visually distinct, prevent unfocused mouse-wheel changes, keep task progress and actions visible, and reflow settings at narrower window widths.
 - Generate future GitHub Release descriptions from validated, categorized changelog entries instead of relying on an unstructured commit summary.
 - Pin GitHub Actions to immutable commit SHAs and use the current artifact uploader.

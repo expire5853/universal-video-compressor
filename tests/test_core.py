@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+import sys
+import threading
+import time
 import unittest
 from dataclasses import replace
 from pathlib import Path
@@ -13,14 +16,17 @@ from video_compressor.core import (
     ENCODERS,
     CompressionJob,
     CompressionSettings,
+    DeviceInfo,
     MediaInfo,
     ToolPaths,
     build_ffmpeg_command,
     can_copy_audio,
     default_output_path,
+    detect_capabilities,
     probe_media,
     quality_value_properties,
     resolve_tools,
+    run_capture,
     verify_output_media,
 )
 
@@ -60,6 +66,60 @@ def settings_for(encoder_id: str, **overrides: object) -> CompressionSettings:
     }
     values.update(overrides)
     return CompressionSettings(**values)  # type: ignore[arg-type]
+
+
+class CapabilityDetectionTests(unittest.TestCase):
+    def test_pre_cancelled_detection_does_not_start_device_scan(self) -> None:
+        cancel_event = threading.Event()
+        cancel_event.set()
+        with (
+            patch("video_compressor.core.detect_windows_devices") as device_scan,
+            self.assertRaises(InterruptedError),
+        ):
+            detect_capabilities(TOOLS, cancel_event)
+        device_scan.assert_not_called()
+
+    def test_detection_reports_determinate_progress_when_encoders_are_absent(
+        self,
+    ) -> None:
+        devices = (DeviceInfo("CPU", "Test", "Test CPU", "N/A", "", "OK", ""),)
+        updates: list[tuple[int, int, str]] = []
+        with (
+            patch("video_compressor.core.detect_windows_devices", return_value=devices),
+            patch(
+                "video_compressor.core.list_ffmpeg_encoders",
+                return_value=frozenset(),
+            ),
+            patch("video_compressor.core.ffmpeg_version", return_value="FFmpeg test"),
+        ):
+            report = detect_capabilities(
+                TOOLS,
+                progress_callback=lambda current, total, status: updates.append(
+                    (current, total, status)
+                ),
+            )
+
+        self.assertTrue(updates)
+        self.assertEqual(updates[0][0], 0)
+        self.assertEqual(updates[-1][0], updates[-1][1])
+        self.assertEqual(report.ffmpeg_version, "FFmpeg test")
+        self.assertFalse(report.available_encoder_ids)
+
+    def test_run_capture_stops_an_active_process_after_cancellation(self) -> None:
+        cancel_event = threading.Event()
+        timer = threading.Timer(0.1, cancel_event.set)
+        timer.start()
+        started = time.monotonic()
+        try:
+            with self.assertRaises(InterruptedError):
+                run_capture(
+                    [sys.executable, "-c", "import time; time.sleep(10)"],
+                    timeout=15,
+                    cancel_event=cancel_event,
+                )
+        finally:
+            timer.join()
+        self.assertLess(time.monotonic() - started, 3)
 
 
 class CommandGenerationTests(unittest.TestCase):

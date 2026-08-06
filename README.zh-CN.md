@@ -51,7 +51,7 @@ ffprobe -hide_banner -version
 
 1. 下载一个 EXE；如果下载的是对应 ZIP，请先解压；
 2. 运行 `VideoCompressor-Full.exe` 或 `VideoCompressor-Lite.exe`；
-3. 等待设备和编码器检测完成；
+3. 等待设备检测完成；也可以跳过或取消，稍后再选择“立即检测”；
 4. 选择源视频，再选择当前可用的格式与质量选项，然后开始压制。
 
 当前 EXE 尚未进行代码签名，因此 Windows SmartScreen 可能显示警告。继续运行前，请确认文件来自本仓库并核对 SHA-256。

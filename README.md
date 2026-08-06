@@ -51,7 +51,7 @@ The edition does not determine whether GPU acceleration works. AMD, NVIDIA, or I
 
 1. Download one EXE, or download and extract the matching ZIP when available.
 2. Run `VideoCompressor-Full.exe` or `VideoCompressor-Lite.exe`.
-3. Wait for device and encoder detection to finish.
+3. Let device detection finish, or skip/cancel it and run **Detect now** when needed.
 4. Select a source video, choose the available format and quality options, then start compression.
 
 The current executables are unsigned, so Windows SmartScreen may display a warning. Verify that the file came from this repository and check its SHA-256 value before allowing it to run.
