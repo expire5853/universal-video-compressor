@@ -23,6 +23,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Changed
 
+- Make dropdown and numeric controls visually distinct, prevent unfocused mouse-wheel changes, keep task progress and actions visible, and reflow settings at narrower window widths.
 - Generate future GitHub Release descriptions from validated, categorized changelog entries instead of relying on an unstructured commit summary.
 - Pin GitHub Actions to immutable commit SHAs and use the current artifact uploader.
 

@@ -35,10 +35,13 @@ from PySide6.QtGui import (
     QKeySequence,
     QLinearGradient,
     QPainter,
+    QPaintEvent,
     QPen,
     QPixmap,
     QPolygonF,
+    QResizeEvent,
     QShortcut,
+    QWheelEvent,
 )
 from PySide6.QtWidgets import (
     QApplication,
@@ -112,7 +115,7 @@ ORGANIZATION_NAME = "UniversalVideoCompressor"
 
 
 STYLE_SHEET = """
-QMainWindow, QWidget#root {
+QMainWindow, QWidget#shell, QWidget#root {
     background: #0b0f14;
     color: #e8eef6;
     font-family: "Segoe UI", "Microsoft YaHei UI";
@@ -129,6 +132,12 @@ QFrame#card {
     background: #121923;
     border: 1px solid #263243;
     border-radius: 12px;
+}
+
+QFrame#stickyBar {
+    background: #101720;
+    border: none;
+    border-top: 1px solid #2b394c;
 }
 
 QLabel#appTitle {
@@ -183,13 +192,60 @@ QLineEdit, QComboBox, QSpinBox, QPlainTextEdit {
     selection-background-color: #287c78;
 }
 
+QComboBox {
+    padding-right: 42px;
+}
+
+QSpinBox {
+    padding-right: 40px;
+}
+
 QLineEdit:focus, QComboBox:focus, QSpinBox:focus, QPlainTextEdit:focus {
     border: 1px solid #3dd6c5;
 }
 
 QComboBox::drop-down {
+    width: 34px;
+    background: #172231;
     border: none;
-    width: 28px;
+    border-left: 1px solid #34445a;
+    border-top-right-radius: 6px;
+    border-bottom-right-radius: 6px;
+}
+
+QComboBox::drop-down:hover,
+QSpinBox::up-button:hover,
+QSpinBox::down-button:hover {
+    background: #24364a;
+}
+
+QComboBox::down-arrow,
+QSpinBox::up-arrow,
+QSpinBox::down-arrow {
+    image: none;
+    width: 0;
+    height: 0;
+}
+
+QSpinBox::up-button,
+QSpinBox::down-button {
+    width: 34px;
+    background: #172231;
+    border: none;
+    border-left: 1px solid #34445a;
+}
+
+QSpinBox::up-button {
+    subcontrol-origin: border;
+    subcontrol-position: top right;
+    border-top-right-radius: 6px;
+    border-bottom: 1px solid #34445a;
+}
+
+QSpinBox::down-button {
+    subcontrol-origin: border;
+    subcontrol-position: bottom right;
+    border-bottom-right-radius: 6px;
 }
 
 QComboBox QAbstractItemView {
@@ -238,6 +294,12 @@ QPushButton#dangerButton {
 QPushButton:disabled {
     color: #596575;
     background: #121820;
+    border-color: #222d3b;
+}
+
+QComboBox:disabled, QSpinBox:disabled, QLineEdit:disabled {
+    color: #667384;
+    background: #10161e;
     border-color: #222d3b;
 }
 
@@ -293,6 +355,87 @@ QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {
     height: 0;
 }
 """
+
+
+class ChoiceComboBox(QComboBox):
+    """A clearly marked choice control that ignores unfocused wheel input."""
+
+    def __init__(self, parent: QWidget | None = None) -> None:
+        super().__init__(parent)
+        help_text = tr(
+            "Click to choose an option. Mouse wheel changes the value only while "
+            "this control has focus."
+        )
+        self.setToolTip(help_text)
+        self.setAccessibleDescription(help_text)
+
+    def wheelEvent(self, event: QWheelEvent) -> None:
+        if not self.hasFocus():
+            event.ignore()
+            return
+        super().wheelEvent(event)
+
+    def paintEvent(self, event: QPaintEvent) -> None:
+        super().paintEvent(event)
+        painter = QPainter(self)
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+        color = QColor("#8deee2" if self.isEnabled() else "#596575")
+        painter.setPen(QPen(color, 1.8, Qt.PenStyle.SolidLine, Qt.PenCapStyle.RoundCap))
+        center_x = self.width() - 17.0
+        center_y = self.height() / 2.0
+        painter.drawLine(
+            QPointF(center_x - 4.0, center_y - 2.0),
+            QPointF(center_x, center_y + 2.0),
+        )
+        painter.drawLine(
+            QPointF(center_x, center_y + 2.0),
+            QPointF(center_x + 4.0, center_y - 2.0),
+        )
+        painter.end()
+
+
+class StepSpinBox(QSpinBox):
+    """A numeric control with visible step buttons and focus-safe wheel input."""
+
+    def __init__(self, parent: QWidget | None = None) -> None:
+        super().__init__(parent)
+        help_text = tr(
+            "Use the plus and minus buttons, arrow keys, or the mouse wheel while "
+            "this control has focus."
+        )
+        self.setToolTip(help_text)
+        self.setAccessibleDescription(help_text)
+
+    def wheelEvent(self, event: QWheelEvent) -> None:
+        if not self.hasFocus():
+            event.ignore()
+            return
+        super().wheelEvent(event)
+
+    def paintEvent(self, event: QPaintEvent) -> None:
+        super().paintEvent(event)
+        painter = QPainter(self)
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+        color = QColor("#8deee2" if self.isEnabled() else "#596575")
+        painter.setPen(QPen(color, 1.5, Qt.PenStyle.SolidLine, Qt.PenCapStyle.RoundCap))
+        center_x = self.width() - 17.0
+        top_y = self.height() / 4.0
+        bottom_y = self.height() * 3.0 / 4.0
+        painter.drawLine(QPointF(center_x - 3.0, top_y), QPointF(center_x + 3.0, top_y))
+        painter.drawLine(QPointF(center_x, top_y - 3.0), QPointF(center_x, top_y + 3.0))
+        painter.drawLine(
+            QPointF(center_x - 3.0, bottom_y), QPointF(center_x + 3.0, bottom_y)
+        )
+        painter.end()
+
+
+def responsive_column_count(width: int, maximum: int) -> int:
+    """Return a stable field-column count for the available scroll width."""
+    if width >= 980:
+        return maximum
+    if width >= 720:
+        return min(2, maximum)
+    return 1
 
 
 PROFILE_DESCRIPTIONS: dict[str, str] = {
@@ -460,6 +603,11 @@ class MainWindow(QMainWindow):
             QTimer.singleShot(0, lambda: self.set_input_path(initial_input))
 
     def _build_ui(self) -> None:
+        shell = QWidget(objectName="shell")
+        shell_layout = QVBoxLayout(shell)
+        shell_layout.setContentsMargins(0, 0, 0, 0)
+        shell_layout.setSpacing(0)
+
         root = QWidget(objectName="root")
         root.setMinimumWidth(880)
         self.scroll_area = QScrollArea(objectName="rootScroll")
@@ -469,7 +617,8 @@ class MainWindow(QMainWindow):
             Qt.ScrollBarPolicy.ScrollBarAlwaysOff
         )
         self.scroll_area.setWidget(root)
-        self.setCentralWidget(self.scroll_area)
+        shell_layout.addWidget(self.scroll_area, 1)
+        self.setCentralWidget(shell)
 
         layout = QVBoxLayout(root)
         layout.setContentsMargins(28, 24, 28, 24)
@@ -490,7 +639,7 @@ class MainWindow(QMainWindow):
         header.addLayout(title_column)
         header.addStretch(1)
         header.addWidget(QLabel(tr("Language"), objectName="fieldLabel"))
-        self.language_combo = QComboBox()
+        self.language_combo = ChoiceComboBox()
         for language_id, language_name in LANGUAGE_NAMES.items():
             self.language_combo.addItem(language_name, language_id)
         self.language_combo.setCurrentIndex(
@@ -552,14 +701,14 @@ class MainWindow(QMainWindow):
         layout.addWidget(source_card)
 
         device_card, device_layout = self._new_card(tr("Encoding device and format"))
-        device_controls = QGridLayout()
-        device_controls.setHorizontalSpacing(16)
-        device_controls.setVerticalSpacing(8)
+        self.device_controls = QGridLayout()
+        self.device_controls.setHorizontalSpacing(16)
+        self.device_controls.setVerticalSpacing(8)
 
-        self.backend_combo = QComboBox()
+        self.backend_combo = ChoiceComboBox()
         self.backend_combo.setMinimumContentsLength(30)
-        self.codec_combo = QComboBox()
-        self.container_combo = QComboBox()
+        self.codec_combo = ChoiceComboBox()
+        self.container_combo = ChoiceComboBox()
         for container in CONTAINERS.values():
             self.container_combo.addItem(tr(container.label), container.id)
         self.container_combo.setCurrentIndex(
@@ -569,27 +718,22 @@ class MainWindow(QMainWindow):
         self.details_button = QPushButton(tr("Detection details"))
         self.details_button.setEnabled(False)
 
-        device_controls.addWidget(
-            QLabel(tr("Encoding device"), objectName="fieldLabel"), 0, 0
+        self.device_fields = (
+            (
+                QLabel(tr("Encoding device"), objectName="fieldLabel"),
+                self.backend_combo,
+            ),
+            (QLabel(tr("Video codec"), objectName="fieldLabel"), self.codec_combo),
+            (QLabel(tr("Container"), objectName="fieldLabel"), self.container_combo),
         )
-        device_controls.addWidget(
-            QLabel(tr("Video codec"), objectName="fieldLabel"), 0, 1
-        )
-        device_controls.addWidget(
-            QLabel(tr("Container"), objectName="fieldLabel"), 0, 2
-        )
-        device_controls.addWidget(self.backend_combo, 1, 0)
-        device_controls.addWidget(self.codec_combo, 1, 1)
-        device_controls.addWidget(self.container_combo, 1, 2)
-        device_controls.setColumnStretch(0, 5)
-        device_controls.setColumnStretch(1, 3)
-        device_controls.setColumnStretch(2, 3)
+        self._place_labeled_fields(self.device_controls, self.device_fields, 3)
+        device_layout.addLayout(self.device_controls, 1, 0, 1, 2)
 
         detection_buttons = QHBoxLayout()
+        detection_buttons.addStretch(1)
         detection_buttons.addWidget(self.refresh_button)
         detection_buttons.addWidget(self.details_button)
-        device_controls.addLayout(detection_buttons, 1, 3)
-        device_layout.addLayout(device_controls, 1, 0, 1, 2)
+        device_layout.addLayout(detection_buttons, 2, 0, 1, 2)
 
         self.hardware_summary = QLabel(
             tr(
@@ -599,15 +743,15 @@ class MainWindow(QMainWindow):
             objectName="hintPanel",
         )
         self.hardware_summary.setWordWrap(True)
-        device_layout.addWidget(self.hardware_summary, 2, 0, 1, 2)
+        device_layout.addWidget(self.hardware_summary, 3, 0, 1, 2)
         layout.addWidget(device_card)
 
         quality_card, quality_layout = self._new_card(tr("Video and quality"))
-        quality_controls = QGridLayout()
-        quality_controls.setHorizontalSpacing(16)
-        quality_controls.setVerticalSpacing(8)
+        self.quality_controls = QGridLayout()
+        self.quality_controls.setHorizontalSpacing(16)
+        self.quality_controls.setVerticalSpacing(8)
 
-        self.profile_combo = QComboBox()
+        self.profile_combo = ChoiceComboBox()
         self.profile_combo.addItem(tr("Custom"), "custom")
         self.profile_combo.addItem(tr("High-quality demo"), "demo")
         self.profile_combo.addItem(tr("General high quality"), "general")
@@ -616,47 +760,62 @@ class MainWindow(QMainWindow):
         self.profile_combo.addItem(tr("Fixed bandwidth / streaming"), "streaming")
         self.profile_combo.setCurrentIndex(self.profile_combo.findData("demo"))
 
-        self.quality_mode_combo = QComboBox()
-        self.quality_value_spin = QSpinBox()
-        self.speed_combo = QComboBox()
+        self.quality_mode_combo = ChoiceComboBox()
+        self.quality_value_spin = StepSpinBox()
+        self.speed_combo = ChoiceComboBox()
         for speed_id, label in SPEED_LABELS.items():
             self.speed_combo.addItem(tr(label), speed_id)
         self.speed_combo.setCurrentIndex(self.speed_combo.findData("max_quality"))
 
-        self.resolution_combo = QComboBox()
+        self.resolution_combo = ChoiceComboBox()
         for height, label in RESOLUTION_OPTIONS.items():
             self.resolution_combo.addItem(tr(label), height)
 
-        self.frame_rate_spin = QSpinBox()
+        self.frame_rate_spin = StepSpinBox()
         self.frame_rate_spin.setRange(0, 240)
         self.frame_rate_spin.setSpecialValueText(tr("Keep source frame rate"))
         self.frame_rate_spin.setSuffix(" fps")
         self.frame_rate_spin.setValue(30)
 
-        self.pixel_depth_combo = QComboBox()
-        self.gop_spin = QSpinBox()
+        self.pixel_depth_combo = ChoiceComboBox()
+        self.gop_spin = StepSpinBox()
         self.gop_spin.setRange(1, 30)
         self.gop_spin.setValue(10)
         self.gop_spin.setSuffix(tr(" seconds"))
 
-        fields = (
-            (tr("Quick profile"), self.profile_combo, 0, 0),
-            (tr("Quality mode"), self.quality_mode_combo, 0, 1),
-            (tr("Quality value / bitrate"), self.quality_value_spin, 0, 2),
-            (tr("Speed and quality"), self.speed_combo, 2, 0),
-            (tr("Resolution"), self.resolution_combo, 2, 1),
-            (tr("Frame rate"), self.frame_rate_spin, 2, 2),
-            (tr("Pixel depth"), self.pixel_depth_combo, 4, 0),
-            (tr("Keyframe interval"), self.gop_spin, 4, 1),
+        self.quality_fields = (
+            (QLabel(tr("Quick profile"), objectName="fieldLabel"), self.profile_combo),
+            (
+                QLabel(tr("Quality mode"), objectName="fieldLabel"),
+                self.quality_mode_combo,
+            ),
+            (
+                QLabel(tr("Quality value / bitrate"), objectName="fieldLabel"),
+                self.quality_value_spin,
+            ),
+            (
+                QLabel(tr("Speed and quality"), objectName="fieldLabel"),
+                self.speed_combo,
+            ),
+            (
+                QLabel(tr("Resolution"), objectName="fieldLabel"),
+                self.resolution_combo,
+            ),
+            (
+                QLabel(tr("Frame rate"), objectName="fieldLabel"),
+                self.frame_rate_spin,
+            ),
+            (
+                QLabel(tr("Pixel depth"), objectName="fieldLabel"),
+                self.pixel_depth_combo,
+            ),
+            (
+                QLabel(tr("Keyframe interval"), objectName="fieldLabel"),
+                self.gop_spin,
+            ),
         )
-        for label, widget, row, column in fields:
-            quality_controls.addWidget(
-                QLabel(label, objectName="fieldLabel"), row, column
-            )
-            quality_controls.addWidget(widget, row + 1, column)
-        for column in range(3):
-            quality_controls.setColumnStretch(column, 1)
-        quality_layout.addLayout(quality_controls, 1, 0, 1, 2)
+        self._place_labeled_fields(self.quality_controls, self.quality_fields, 3)
+        quality_layout.addLayout(self.quality_controls, 1, 0, 1, 2)
 
         self.quality_hint = QLabel(objectName="hintPanel")
         self.quality_hint.setWordWrap(True)
@@ -664,24 +823,23 @@ class MainWindow(QMainWindow):
         layout.addWidget(quality_card)
 
         audio_card, audio_layout = self._new_card(tr("Audio and publishing"))
-        audio_controls = QGridLayout()
-        audio_controls.setHorizontalSpacing(16)
-        self.audio_combo = QComboBox()
-        self.audio_bitrate_spin = QSpinBox()
+        self.audio_controls = QGridLayout()
+        self.audio_controls.setHorizontalSpacing(16)
+        self.audio_controls.setVerticalSpacing(8)
+        self.audio_combo = ChoiceComboBox()
+        self.audio_bitrate_spin = StepSpinBox()
         self.audio_bitrate_spin.setRange(32, 512)
         self.audio_bitrate_spin.setValue(128)
         self.audio_bitrate_spin.setSuffix(" kb/s")
-        audio_controls.addWidget(
-            QLabel(tr("Audio mode"), objectName="fieldLabel"), 0, 0
+        self.audio_fields = (
+            (QLabel(tr("Audio mode"), objectName="fieldLabel"), self.audio_combo),
+            (
+                QLabel(tr("Audio bitrate"), objectName="fieldLabel"),
+                self.audio_bitrate_spin,
+            ),
         )
-        audio_controls.addWidget(
-            QLabel(tr("Audio bitrate"), objectName="fieldLabel"), 0, 1
-        )
-        audio_controls.addWidget(self.audio_combo, 1, 0)
-        audio_controls.addWidget(self.audio_bitrate_spin, 1, 1)
-        audio_controls.setColumnStretch(0, 2)
-        audio_controls.setColumnStretch(1, 1)
-        audio_layout.addLayout(audio_controls, 1, 0, 1, 2)
+        self._place_labeled_fields(self.audio_controls, self.audio_fields, 2)
+        audio_layout.addLayout(self.audio_controls, 1, 0, 1, 2)
 
         options = QHBoxLayout()
         options.setSpacing(24)
@@ -693,22 +851,32 @@ class MainWindow(QMainWindow):
         audio_layout.addLayout(options, 2, 0, 1, 2)
         layout.addWidget(audio_card)
 
-        progress_card, progress_layout = self._new_card(tr("Task progress"))
+        self.sticky_bar = QFrame(objectName="stickyBar")
+        progress_layout = QGridLayout(self.sticky_bar)
+        progress_layout.setContentsMargins(28, 10, 28, 12)
+        progress_layout.setHorizontalSpacing(12)
+        progress_layout.setVerticalSpacing(8)
+        progress_layout.addWidget(
+            QLabel(tr("Task progress"), objectName="sectionTitle"), 0, 0
+        )
+
         self.progress_bar = QProgressBar()
         self.progress_bar.setRange(0, 1000)
         self.progress_bar.setValue(0)
         self.progress_bar.setTextVisible(False)
-        progress_layout.addWidget(self.progress_bar, 1, 0, 1, 2)
+        progress_layout.addWidget(self.progress_bar, 1, 0, 1, 3)
 
         self.status_label = QLabel(
             tr("Waiting for hardware detection."), objectName="muted"
         )
         self.metrics_label = QLabel("0.0%", objectName="muted")
         self.metrics_label.setAlignment(Qt.AlignmentFlag.AlignRight)
-        progress_layout.addWidget(self.status_label, 2, 0)
-        progress_layout.addWidget(self.metrics_label, 2, 1)
+        progress_layout.addWidget(self.status_label, 0, 1)
+        progress_layout.addWidget(self.metrics_label, 0, 2)
+        progress_layout.setColumnStretch(1, 1)
 
         action_row = QHBoxLayout()
+        action_row.setSpacing(8)
         self.inspect_button = QPushButton(tr("Analyze source"))
         self.preview_button = QPushButton(tr("Preview command"))
         self.open_output_button = QPushButton(tr("Open output directory"))
@@ -729,8 +897,7 @@ class MainWindow(QMainWindow):
         action_row.addStretch(1)
         action_row.addWidget(self.cancel_button)
         action_row.addWidget(self.start_button)
-        progress_layout.addLayout(action_row, 3, 0, 1, 2)
-        layout.addWidget(progress_card)
+        progress_layout.addLayout(action_row, 2, 0, 1, 3)
 
         log_card, log_layout = self._new_card(tr("Runtime log"))
         self.log_edit = QPlainTextEdit(objectName="log")
@@ -752,6 +919,58 @@ class MainWindow(QMainWindow):
             )
         )
         layout.addLayout(footer)
+        shell_layout.addWidget(self.sticky_bar)
+
+        self._responsive_device_columns = 3
+        self._responsive_quality_columns = 3
+        self._responsive_audio_columns = 2
+        QTimer.singleShot(0, self._update_responsive_layout)
+
+    @staticmethod
+    def _place_labeled_fields(
+        grid: QGridLayout,
+        fields: tuple[tuple[QLabel, QWidget], ...],
+        columns: int,
+    ) -> None:
+        while grid.takeAt(0) is not None:
+            pass
+        for column in range(max(3, columns)):
+            grid.setColumnStretch(column, 0)
+        for index, (label, widget) in enumerate(fields):
+            row = (index // columns) * 2
+            column = index % columns
+            grid.addWidget(label, row, column)
+            grid.addWidget(widget, row + 1, column)
+        for column in range(columns):
+            grid.setColumnStretch(column, 1)
+
+    @Slot()
+    def _update_responsive_layout(self) -> None:
+        available_width = self.scroll_area.viewport().width() or self.width()
+        device_columns = responsive_column_count(available_width, 3)
+        quality_columns = responsive_column_count(available_width, 3)
+        audio_columns = responsive_column_count(available_width, 2)
+
+        if device_columns != self._responsive_device_columns:
+            self._place_labeled_fields(
+                self.device_controls, self.device_fields, device_columns
+            )
+            self._responsive_device_columns = device_columns
+        if quality_columns != self._responsive_quality_columns:
+            self._place_labeled_fields(
+                self.quality_controls, self.quality_fields, quality_columns
+            )
+            self._responsive_quality_columns = quality_columns
+        if audio_columns != self._responsive_audio_columns:
+            self._place_labeled_fields(
+                self.audio_controls, self.audio_fields, audio_columns
+            )
+            self._responsive_audio_columns = audio_columns
+
+    def resizeEvent(self, event: QResizeEvent) -> None:
+        super().resizeEvent(event)
+        if hasattr(self, "_responsive_device_columns"):
+            self._update_responsive_layout()
 
     def _new_card(self, title: str) -> tuple[QFrame, QGridLayout]:
         card = QFrame(objectName="card")

@@ -19,6 +19,8 @@ ZH_CN_TRANSLATIONS: dict[str, str] = {
     "Language": "语言",
     "Language saved": "语言设置已保存",
     "Restart the application to use {language}.": "重新启动程序后将使用{language}。",
+    "Click to choose an option. Mouse wheel changes the value only while this control has focus.": "单击以选择选项。仅当此控件获得焦点时，鼠标滚轮才会更改选项。",
+    "Use the plus and minus buttons, arrow keys, or the mouse wheel while this control has focus.": "使用加减按钮、方向键，或在控件获得焦点时使用鼠标滚轮。",
     "Universal encoding workbench": "通用编码工作台",
     "Universal video compression workbench": "通用视频压制工作台",
     "CPU · GPU · NPU capability detection · H.264 / HEVC / AV1 / VP9": "CPU · GPU · NPU 能力识别 · H.264 / HEVC / AV1 / VP9",
