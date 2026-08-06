@@ -15,6 +15,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Fixed
 
+- Upgrade the icon-generation dependency Pillow to 12.3.0, resolving its reported security advisories without adding Pillow to application binaries.
 - Use the package version in encoded-file metadata instead of a stale hard-coded product label.
 - Avoid unnecessary filesystem access when FFprobe already reports the media size.
 - Verify the selected audio codec before atomically publishing an encoded output.

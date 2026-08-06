@@ -78,6 +78,36 @@ class ProjectMetadataTests(unittest.TestCase):
             positions = [readme.index(heading) for heading in headings]
             self.assertEqual(positions, sorted(positions))
 
+    def test_pillow_build_dependency_is_patched_and_consistent(self) -> None:
+        project_root = Path(__file__).resolve().parents[1]
+        with (project_root / "pyproject.toml").open("rb") as stream:
+            metadata = tomllib.load(stream)
+        with (project_root / "uv.lock").open("rb") as stream:
+            lock = tomllib.load(stream)
+
+        pillow_specs = [
+            dependency
+            for dependency in metadata["dependency-groups"]["build"]
+            if dependency.lower().startswith("pillow==")
+        ]
+        self.assertEqual(len(pillow_specs), 1)
+        pillow_version = pillow_specs[0].partition("==")[2]
+        self.assertGreaterEqual(
+            tuple(int(component) for component in pillow_version.split(".")),
+            (12, 3, 0),
+        )
+
+        locked_pillow = [
+            package for package in lock["package"] if package["name"] == "pillow"
+        ]
+        self.assertEqual(len(locked_pillow), 1)
+        self.assertEqual(locked_pillow[0]["version"], pillow_version)
+
+        icon_generator = (project_root / "scripts/generate_icon.py").read_text(
+            encoding="utf-8"
+        )
+        self.assertIn(f'"Pillow=={pillow_version}"', icon_generator)
+
     def test_automation_actions_are_pinned_and_release_is_self_contained(self) -> None:
         project_root = Path(__file__).resolve().parents[1]
         workflows = list((project_root / ".github/workflows").glob("*.yml"))
