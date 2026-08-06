@@ -7,6 +7,8 @@ Describe the user-visible change and why it is needed.
 - [ ] `uv run ruff format --check src tests scripts`
 - [ ] `uv run ruff check src tests scripts`
 - [ ] `uv run python -m unittest discover -s tests -v`
+- [ ] I added a concise `CHANGELOG.md` entry under the correct `Unreleased`
+      category, or this change has no user-visible release impact.
 - [ ] I listed the hardware/backend combinations I actually tested.
 - [ ] Screenshots and logs contain no private paths or media metadata.
 

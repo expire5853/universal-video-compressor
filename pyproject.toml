@@ -10,6 +10,7 @@ readme = "README.md"
 requires-python = ">=3.12,<3.14"
 license = "GPL-3.0-only"
 license-files = ["LICENSE"]
+authors = [{ name = "Universal Video Compressor contributors" }]
 keywords = ["ffmpeg", "video", "compression", "hevc", "av1", "pyside6"]
 classifiers = [
   "Development Status :: 4 - Beta",
@@ -19,11 +20,18 @@ classifiers = [
   "Operating System :: Microsoft :: Windows :: Windows 11",
   "Programming Language :: Python :: 3",
   "Programming Language :: Python :: 3.12",
+  "Programming Language :: Python :: 3.13",
   "Topic :: Multimedia :: Video :: Conversion",
 ]
 dependencies = [
   "PySide6==6.10.1",
 ]
+
+[project.urls]
+Homepage = "https://github.com/expire5853/universal-video-compressor"
+Repository = "https://github.com/expire5853/universal-video-compressor"
+Issues = "https://github.com/expire5853/universal-video-compressor/issues"
+Changelog = "https://github.com/expire5853/universal-video-compressor/blob/main/CHANGELOG.md"
 
 [project.scripts]
 video-compressor = "video_compressor.gui:main"

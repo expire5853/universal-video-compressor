@@ -1859,12 +1859,15 @@ def run_gui_self_test(
     explicit_ffmpeg: str | None,
     screenshot_path: str | None,
 ) -> int:
-    os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
+    if os.name != "nt":
+        os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
     app = QApplication.instance() or QApplication([])
     app.setStyle("Fusion")
     app.setStyleSheet(STYLE_SHEET)
     app.setFont(QFont("Segoe UI", 10))
     window = MainWindow(None, explicit_ffmpeg)
+    window.showNormal()
+    window.resize(1120, 960)
     window.show()
 
     deadline = time.monotonic() + 40

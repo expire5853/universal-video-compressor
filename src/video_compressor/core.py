@@ -21,6 +21,7 @@ from contextlib import suppress
 from dataclasses import asdict, dataclass
 from pathlib import Path
 
+from . import __version__
 from .i18n import tr
 
 
@@ -633,9 +634,12 @@ def probe_media(tools: ToolPaths, path: Path) -> MediaInfo:
             None,
         )
         media_format = data.get("format", {})
+        reported_size = media_format.get("size")
         return MediaInfo(
             duration=float(media_format.get("duration", 0.0)),
-            size=int(media_format.get("size", path.stat().st_size)),
+            size=int(reported_size)
+            if reported_size is not None
+            else path.stat().st_size,
             format_name=str(media_format.get("format_name", "unknown")),
             codec=str(video.get("codec_name", "unknown")),
             profile=str(video.get("profile", "unknown")),
@@ -1577,7 +1581,8 @@ def build_ffmpeg_command(
         [
             "-metadata",
             (
-                f"comment=Video Compressor 2; backend={settings.backend_id}; "
+                f"comment=Universal Video Compressor {__version__}; "
+                f"backend={settings.backend_id}; "
                 f"encoder={encoder.ffmpeg_name}; mode={settings.quality_mode}"
             ),
             "-stats_period",
@@ -1671,6 +1676,80 @@ def remove_partial(path: Path) -> None:
         path.unlink(missing_ok=True)
 
 
+def verify_output_media(job: CompressionJob, verified: MediaInfo) -> None:
+    """Validate probed output properties before publishing the partial file."""
+    if verified.codec != job.encoder.codec_id:
+        raise RuntimeError(
+            tr(
+                "Output verification failed: expected {expected}, got {actual}.",
+                expected=job.encoder.codec_id,
+                actual=verified.codec,
+            )
+        )
+    if job.expected_max_width is None or job.expected_max_height is None:
+        if verified.width != job.source.width or verified.height != job.source.height:
+            raise RuntimeError(
+                tr(
+                    "Output verification failed: resolution differs from the "
+                    "source video."
+                )
+            )
+    elif (
+        verified.width > job.expected_max_width
+        or verified.height > job.expected_max_height
+    ):
+        raise RuntimeError(
+            tr("Output verification failed: resolution exceeds the selected limit.")
+        )
+
+    if job.settings.frame_rate is not None:
+        actual_rate = parse_rate(verified.frame_rate)
+        if abs(actual_rate - job.settings.frame_rate) > 0.01:
+            raise RuntimeError(
+                tr("Output verification failed: frame rate does not match the setting.")
+            )
+    if job.settings.pixel_depth == 10 and not any(
+        marker in verified.pixel_format for marker in ("10", "p010")
+    ):
+        raise RuntimeError(
+            tr("Output verification failed: no 10-bit video was produced.")
+        )
+    if job.settings.audio_mode == "none" and verified.has_audio:
+        raise RuntimeError(
+            tr(
+                "Output verification failed: audio was removed, but the output "
+                "still contains audio."
+            )
+        )
+    if (
+        job.settings.audio_mode != "none"
+        and job.source.has_audio
+        and not verified.has_audio
+    ):
+        raise RuntimeError(
+            tr(
+                "Output verification failed: the source contains audio, but "
+                "output audio is missing."
+            )
+        )
+
+    expected_audio_codec = None
+    if job.source.has_audio and job.settings.audio_mode != "none":
+        expected_audio_codec = (
+            job.source.audio_codec
+            if job.settings.audio_mode == "copy"
+            else job.settings.audio_mode
+        )
+    if expected_audio_codec and verified.audio_codec != expected_audio_codec:
+        raise RuntimeError(
+            tr(
+                "Output verification failed: expected audio {expected}, got {actual}.",
+                expected=expected_audio_codec,
+                actual=verified.audio_codec or tr("No audio"),
+            )
+        )
+
+
 def execute_job(
     tools: ToolPaths,
     job: CompressionJob,
@@ -1756,66 +1835,7 @@ def execute_job(
             raise RuntimeError(tr("FFmpeg exit code: {code}", code=return_code))
 
         verified = probe_media(tools, job.partial_path)
-        if verified.codec != job.encoder.codec_id:
-            raise RuntimeError(
-                tr(
-                    "Output verification failed: expected {expected}, got {actual}.",
-                    expected=job.encoder.codec_id,
-                    actual=verified.codec,
-                )
-            )
-        if job.expected_max_width is None or job.expected_max_height is None:
-            if (
-                verified.width != job.source.width
-                or verified.height != job.source.height
-            ):
-                raise RuntimeError(
-                    tr(
-                        "Output verification failed: resolution differs from the "
-                        "source video."
-                    )
-                )
-        elif (
-            verified.width > job.expected_max_width
-            or verified.height > job.expected_max_height
-        ):
-            raise RuntimeError(
-                tr("Output verification failed: resolution exceeds the selected limit.")
-            )
-
-        if job.settings.frame_rate is not None:
-            actual_rate = parse_rate(verified.frame_rate)
-            if abs(actual_rate - job.settings.frame_rate) > 0.01:
-                raise RuntimeError(
-                    tr(
-                        "Output verification failed: frame rate does not match the "
-                        "setting."
-                    )
-                )
-        if job.settings.pixel_depth == 10 and not any(
-            marker in verified.pixel_format for marker in ("10", "p010")
-        ):
-            raise RuntimeError(
-                tr("Output verification failed: no 10-bit video was produced.")
-            )
-        if job.settings.audio_mode == "none" and verified.has_audio:
-            raise RuntimeError(
-                tr(
-                    "Output verification failed: audio was removed, but the output "
-                    "still contains audio."
-                )
-            )
-        if (
-            job.settings.audio_mode != "none"
-            and job.source.has_audio
-            and not verified.has_audio
-        ):
-            raise RuntimeError(
-                tr(
-                    "Output verification failed: the source contains audio, but "
-                    "output audio is missing."
-                )
-            )
+        verify_output_media(job, verified)
 
         if job.output_path.exists() and not job.settings.overwrite:
             raise FileExistsError(

@@ -1,18 +1,27 @@
 from __future__ import annotations
 
 import unittest
+from dataclasses import replace
 from pathlib import Path
+from subprocess import CompletedProcess
+from tempfile import TemporaryDirectory
+from unittest.mock import patch
 
+from video_compressor import __version__
 from video_compressor.core import (
     CONTAINERS,
     ENCODERS,
+    CompressionJob,
     CompressionSettings,
     MediaInfo,
     ToolPaths,
     build_ffmpeg_command,
     can_copy_audio,
     default_output_path,
+    probe_media,
     quality_value_properties,
+    resolve_tools,
+    verify_output_media,
 )
 
 SOURCE = MediaInfo(
@@ -161,6 +170,96 @@ class CommandGenerationTests(unittest.TestCase):
         self.assertFalse(can_copy_audio("mp4", "opus"))
         self.assertTrue(can_copy_audio("mkv", "opus"))
         self.assertFalse(can_copy_audio("webm", "aac"))
+
+    def test_output_metadata_uses_package_version(self) -> None:
+        command = self.build("cpu_hevc")
+        comment = command[command.index("-metadata") + 1]
+        self.assertIn(f"Universal Video Compressor {__version__}", comment)
+        self.assertNotIn("Video Compressor 2", comment)
+
+
+class ToolAndProbeTests(unittest.TestCase):
+    def test_resolve_tools_accepts_an_explicit_directory(self) -> None:
+        with TemporaryDirectory() as folder:
+            root = Path(folder)
+            ffmpeg = root / "ffmpeg.exe"
+            ffprobe = root / "ffprobe.exe"
+            ffmpeg.touch()
+            ffprobe.touch()
+
+            with (
+                patch("video_compressor.core.bundled_tool_candidates", return_value=[]),
+                patch("video_compressor.core.shutil.which", return_value=None),
+            ):
+                tools = resolve_tools(str(root))
+
+            self.assertEqual(tools.ffmpeg, ffmpeg.resolve())
+            self.assertEqual(tools.ffprobe, ffprobe.resolve())
+            self.assertFalse(tools.bundled)
+
+    def test_probe_media_parses_video_and_audio_streams(self) -> None:
+        payload = """{
+          "streams": [
+            {"codec_type": "video", "codec_name": "hevc", "profile": "Main 10",
+             "pix_fmt": "yuv420p10le", "width": 1920, "height": 1080,
+             "avg_frame_rate": "30000/1001", "bit_rate": "4000000"},
+            {"codec_type": "audio", "codec_name": "aac", "channels": 2}
+          ],
+          "format": {"duration": "12.5", "size": "12345", "format_name": "mov,mp4"}
+        }"""
+        completed = CompletedProcess([], 0, stdout=payload, stderr="")
+
+        with patch("video_compressor.core.run_capture", return_value=completed):
+            media = probe_media(TOOLS, Path("input.mp4"))
+
+        self.assertEqual(media.codec, "hevc")
+        self.assertEqual(media.pixel_format, "yuv420p10le")
+        self.assertEqual(media.frame_rate, "30000/1001")
+        self.assertEqual(media.audio_codec, "aac")
+        self.assertEqual(media.audio_channels, 2)
+
+    def test_probe_media_rejects_output_without_video(self) -> None:
+        completed = CompletedProcess(
+            [],
+            0,
+            stdout='{"streams": [{"codec_type": "audio"}], "format": {}}',
+            stderr="",
+        )
+
+        with (
+            patch("video_compressor.core.run_capture", return_value=completed),
+            self.assertRaisesRegex(RuntimeError, "no usable video stream"),
+        ):
+            probe_media(TOOLS, Path("input.mp4"))
+
+
+class OutputVerificationTests(unittest.TestCase):
+    def make_job(self, **overrides: object) -> CompressionJob:
+        settings = settings_for("cpu_hevc", **overrides)
+        return CompressionJob(
+            input_path=Path("input.mp4"),
+            output_path=Path("output.mp4"),
+            partial_path=Path("output.partial.mp4"),
+            settings=settings,
+            encoder=ENCODERS["cpu_hevc"],
+            source=SOURCE,
+            command=(),
+            expected_max_width=None,
+            expected_max_height=None,
+        )
+
+    def test_verification_rejects_wrong_transcoded_audio_codec(self) -> None:
+        job = self.make_job(audio_mode="aac")
+        verified = replace(SOURCE, codec="hevc", audio_codec="opus")
+
+        with self.assertRaisesRegex(RuntimeError, "expected audio aac"):
+            verify_output_media(job, verified)
+
+    def test_verification_accepts_matching_audio_codec(self) -> None:
+        job = self.make_job(audio_mode="aac")
+        verified = replace(SOURCE, codec="hevc", audio_codec="aac")
+
+        verify_output_media(job, verified)
 
 
 if __name__ == "__main__":

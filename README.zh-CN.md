@@ -2,7 +2,9 @@
 
 [English](README.md) | **简体中文**
 
-![Python 3.12](https://img.shields.io/badge/Python-3.12-3776AB?logo=python&logoColor=white)
+[![CI](https://github.com/expire5853/universal-video-compressor/actions/workflows/ci.yml/badge.svg)](https://github.com/expire5853/universal-video-compressor/actions/workflows/ci.yml)
+[![CodeQL](https://github.com/expire5853/universal-video-compressor/actions/workflows/codeql.yml/badge.svg)](https://github.com/expire5853/universal-video-compressor/actions/workflows/codeql.yml)
+![Python 3.12–3.13](https://img.shields.io/badge/Python-3.12%E2%80%933.13-3776AB?logo=python&logoColor=white)
 ![Windows](https://img.shields.io/badge/platform-Windows-0078D4?logo=windows)
 ![License](https://img.shields.io/badge/license-GPL--3.0--only-blue)
 
@@ -85,10 +87,10 @@ uv run python -m video_compressor `
 
 ## Windows 发行版本
 
-| 版本 | 大约体积 | FFmpeg 要求 | 适合场景 |
-|---|---:|---|---|
-| Full | 142 MiB | 已内置 | 不安装 FFmpeg，下载后直接运行 |
-| Lite | 21 MiB | `PATH` 中有 `ffmpeg.exe` 和 `ffprobe.exe` | 更小的下载体积、统一管理 FFmpeg |
+| 版本 | 推荐下载文件 | 大约体积 | FFmpeg 要求 | 适合场景 |
+|---|---|---:|---|---|
+| Full | `Universal-Video-Compressor-Windows-Full.zip` | 142 MiB | 已内置 | 不安装 FFmpeg，下载后直接运行 |
+| Lite | `Universal-Video-Compressor-Windows-Lite.zip` | 21 MiB | `PATH` 中有 `ffmpeg.exe` 和 `ffprobe.exe` | 更小的下载体积、统一管理 FFmpeg |
 
 两个版本的功能相同。实际可用的 CPU/GPU 编码器仍取决于目标机器上的 FFmpeg 构建和驱动。
 
@@ -109,7 +111,7 @@ powershell -ExecutionPolicy Bypass `
 
 - `artifacts/full/onefile/VideoCompressor-Full.exe`；
 - `artifacts/lite/onefile/VideoCompressor-Lite.exe`；
-- `artifacts/release` 中的两个 EXE、公共文件和合并校验清单。
+- `artifacts/release` 中的 Full/Lite 独立 ZIP、两个 EXE、公共文件和合并校验清单。
 
 使用 `-Edition Full` 或 `-Edition Lite` 可以只构建一个版本。无法自动发现工具时，Full 构建可以通过 `-FfmpegPath` 指定 FFmpeg。
 
@@ -117,12 +119,25 @@ powershell -ExecutionPolicy Bypass `
 
 ```powershell
 uv sync --frozen --group dev
-uv run ruff format --check src tests
-uv run ruff check src tests
+uv run ruff format --check src tests scripts
+uv run ruff check src tests scripts
 uv run python -m unittest discover -s tests -v
 ```
 
 硬件测试与拉取请求要求见 [CONTRIBUTING.md](CONTRIBUTING.md)，内部设计见 [docs/architecture.md](docs/architecture.md)，发布流程见 [docs/releasing.md](docs/releasing.md)。
+
+## 当前媒体流范围
+
+当前版本压制第一路视频流，并在没有选择移除音频时处理第一路音频流。其他音轨、字幕流和附件不会复制；章节及封装元数据是否保留取决于输出格式。处理存档视频或多语言视频前，请先检查“预览命令”。
+
+## 验证 Release 下载
+
+Release ZIP 包含 EXE、中英文 README、应用许可证、第三方声明，以及 Full 版适用的 FFmpeg 许可证。请先使用 `SHA256SUMS.txt` 核对文件；安装了 GitHub CLI 的用户还可以验证构建来源：
+
+```powershell
+gh attestation verify .\Universal-Video-Compressor-Windows-Full.zip `
+  --repo expire5853/universal-video-compressor
+```
 
 ## 旧版预设
 

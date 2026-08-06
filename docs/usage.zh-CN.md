@@ -1,5 +1,7 @@
 # 使用说明
 
+[English](usage.md) | **简体中文**
+
 Universal Video Compressor 是面向 Windows 的通用视频压制工作台。程序会检查设备、驱动、FFmpeg 编译状态，并执行实际编码和 FFprobe 回读；不可用的设备仍会出现在检测详情中，但不能被选择。
 
 项目首页的完整中文版本见 [README.zh-CN.md](../README.zh-CN.md)。
@@ -60,14 +62,16 @@ uv run video-compressor "C:\Videos\demo.mp4"
 
 其他选项包括分辨率、1–240 fps、8/10-bit、关键帧间隔、音频复制、AAC、Opus、FLAC、移除音频以及音频码率。
 
+当前版本处理第一路视频流和第一路音频流。其他音轨、字幕流和附件不会复制；处理存档视频或多语言视频前，请先检查“预览命令”。
+
 ## Windows 单文件版
 
 Release 提供两个功能相同的版本：
 
-| 版本 | 大约体积 | FFmpeg 要求 | 适合场景 |
-|---|---:|---|---|
-| Full | 142 MiB | 已内置 FFmpeg 和 FFprobe | 下载后直接运行 |
-| Lite | 21 MiB | 系统 `PATH` 中必须有 `ffmpeg.exe` 和 `ffprobe.exe` | 已统一安装或管理 FFmpeg |
+| 版本 | 推荐下载文件 | 大约体积 | FFmpeg 要求 | 适合场景 |
+|---|---|---:|---|---|
+| Full | `Universal-Video-Compressor-Windows-Full.zip` | 142 MiB | 已内置 FFmpeg 和 FFprobe | 下载后直接运行 |
+| Lite | `Universal-Video-Compressor-Windows-Lite.zip` | 21 MiB | 系统 `PATH` 中必须有 `ffmpeg.exe` 和 `ffprobe.exe` | 已统一安装或管理 FFmpeg |
 
 ```powershell
 powershell -ExecutionPolicy Bypass `
@@ -80,7 +84,7 @@ powershell -ExecutionPolicy Bypass `
 
 - `artifacts\full\onefile\VideoCompressor-Full.exe`；
 - `artifacts\lite\onefile\VideoCompressor-Lite.exe`；
-- `artifacts\release` 中的两个 EXE、公共许可证和合并后的校验文件。
+- `artifacts\release` 中的 Full/Lite 独立 ZIP、两个 EXE、声明文件和合并后的校验文件。
 
 使用 `-Edition Full` 或 `-Edition Lite` 可以只构建一个版本。Full 首次运行会把内容解压到 `%LOCALAPPDATA%\UniversalVideoCompressor\<版本>\bundled-ffmpeg`；Lite 使用独立的 `system-ffmpeg` 缓存，并从系统寻找 FFmpeg。
 
@@ -100,6 +104,21 @@ uv run python -m video_compressor `
 uv run python -m video_compressor `
   --smoke-encode "C:\Videos\sample.mp4" "C:\Videos\output.mp4" `
   --backend auto --codec hevc --quality-mode constant_quality
+```
+
+## 验证 Release
+
+先将下载文件与 `SHA256SUMS.txt` 对照：
+
+```powershell
+Get-FileHash .\Universal-Video-Compressor-Windows-Full.zip -Algorithm SHA256
+```
+
+安装了 GitHub CLI 时，还可以验证文件确实由本仓库的发布工作流生成：
+
+```powershell
+gh attestation verify .\Universal-Video-Compressor-Windows-Full.zip `
+  --repo expire5853/universal-video-compressor
 ```
 
 ## 注意事项

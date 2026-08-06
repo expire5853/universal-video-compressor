@@ -2,13 +2,15 @@
 
 **English** | [简体中文](README.zh-CN.md)
 
-![Python 3.12](https://img.shields.io/badge/Python-3.12-3776AB?logo=python&logoColor=white)
+[![CI](https://github.com/expire5853/universal-video-compressor/actions/workflows/ci.yml/badge.svg)](https://github.com/expire5853/universal-video-compressor/actions/workflows/ci.yml)
+[![CodeQL](https://github.com/expire5853/universal-video-compressor/actions/workflows/codeql.yml/badge.svg)](https://github.com/expire5853/universal-video-compressor/actions/workflows/codeql.yml)
+![Python 3.12–3.13](https://img.shields.io/badge/Python-3.12%E2%80%933.13-3776AB?logo=python&logoColor=white)
 ![Windows](https://img.shields.io/badge/platform-Windows-0078D4?logo=windows)
 ![License](https://img.shields.io/badge/license-GPL--3.0--only-blue)
 
 A modern Windows video compression workbench built with PySide6 and FFmpeg. It detects CPU, GPU, and NPU devices, checks their drivers, and verifies every selectable encoder with a real encode-and-probe test.
 
-![Application preview](docs/images/app-preview.png)
+![Application preview in English](docs/images/app-preview-en.png)
 
 ## Which Windows edition should I download?
 
@@ -81,14 +83,14 @@ uv run python -m video_compressor `
   --self-test
 ```
 
-Detailed Chinese instructions are available in [docs/usage.zh-CN.md](docs/usage.zh-CN.md).
+Detailed instructions are available in [English](docs/usage.md) and [Simplified Chinese](docs/usage.zh-CN.md).
 
 ## Windows release editions
 
-| Edition | Approximate size | FFmpeg requirement | Best for |
-|---|---:|---|---|
-| Full | 142 MiB | Included | Download and run without installing FFmpeg |
-| Lite | 21 MiB | `ffmpeg.exe` and `ffprobe.exe` on `PATH` | Smaller downloads and managed FFmpeg installations |
+| Edition | Recommended download | Approximate size | FFmpeg requirement | Best for |
+|---|---|---:|---|---|
+| Full | `Universal-Video-Compressor-Windows-Full.zip` | 142 MiB | Included | Download and run without installing FFmpeg |
+| Lite | `Universal-Video-Compressor-Windows-Lite.zip` | 21 MiB | `ffmpeg.exe` and `ffprobe.exe` on `PATH` | Smaller downloads and managed FFmpeg installations |
 
 The application features are identical. Available CPU and GPU encoders still depend on the FFmpeg build and drivers detected on the target machine.
 
@@ -109,6 +111,7 @@ The outputs are:
 
 - `artifacts/full/onefile/VideoCompressor-Full.exe`;
 - `artifacts/lite/onefile/VideoCompressor-Lite.exe`;
+- self-contained Full and Lite ZIP downloads under `artifacts/release`;
 - combined release files and checksums under `artifacts/release`.
 
 Use `-Edition Full` or `-Edition Lite` to build only one edition. Full builds accept `-FfmpegPath` when the tools are not discoverable automatically.
@@ -117,12 +120,25 @@ Use `-Edition Full` or `-Edition Lite` to build only one edition. Full builds ac
 
 ```powershell
 uv sync --frozen --group dev
-uv run ruff format --check src tests
-uv run ruff check src tests
+uv run ruff format --check src tests scripts
+uv run ruff check src tests scripts
 uv run python -m unittest discover -s tests -v
 ```
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) for hardware-test expectations and pull-request guidance. The internal design is documented in [docs/architecture.md](docs/architecture.md), and the release process in [docs/releasing.md](docs/releasing.md).
+
+## Current stream scope
+
+The current version compresses the first video stream and, unless audio removal is selected, the first audio stream. Additional audio tracks, subtitle streams, and attachments are not copied. Chapters and container metadata may depend on the selected output format. Check the preview command before processing archival or multi-language media.
+
+## Verify release downloads
+
+Release ZIP files include the executable, both README files, application license, third-party notices, and the applicable FFmpeg license. Compare the downloaded file against `SHA256SUMS.txt`; users with GitHub CLI can also verify the build provenance:
+
+```powershell
+gh attestation verify .\Universal-Video-Compressor-Windows-Full.zip `
+  --repo expire5853/universal-video-compressor
+```
 
 ## Legacy presets
 

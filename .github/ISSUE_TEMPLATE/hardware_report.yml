@@ -1,0 +1,72 @@
+name: Hardware compatibility report
+description: Share a sanitized CPU/GPU/NPU and encoder validation result.
+title: "[Hardware]: "
+labels: [hardware]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Hardware reports expand the community compatibility matrix. Remove usernames, private paths, file hashes, and media metadata before submitting.
+  - type: input
+    id: version
+    attributes:
+      label: Application version
+      placeholder: "0.1.1, source checkout, or commit SHA"
+    validations:
+      required: true
+  - type: dropdown
+    id: edition
+    attributes:
+      label: Edition
+      options:
+        - Full
+        - Lite
+        - Source checkout
+    validations:
+      required: true
+  - type: input
+    id: windows
+    attributes:
+      label: Windows version
+      placeholder: "Windows 11 24H2"
+    validations:
+      required: true
+  - type: textarea
+    id: hardware
+    attributes:
+      label: CPU, GPU/NPU, and drivers
+      description: Include exact device names and relevant driver versions.
+    validations:
+      required: true
+  - type: textarea
+    id: ffmpeg
+    attributes:
+      label: FFmpeg information
+      description: Include the first line and configuration from `ffmpeg -hide_banner -version`.
+      render: text
+    validations:
+      required: true
+  - type: textarea
+    id: diagnostics
+    attributes:
+      label: Sanitized capability report
+      description: Attach or paste the JSON report after removing private paths and metadata.
+      render: json
+    validations:
+      required: true
+  - type: textarea
+    id: results
+    attributes:
+      label: Tested combinations and results
+      description: List backend, codec, quality mode, pixel depth, container, and whether a real encode succeeded.
+    validations:
+      required: true
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Checklist
+      options:
+        - label: I removed private paths and sensitive media information.
+          required: true
+        - label: I understand that detected hardware alone does not prove encoder availability.
+          required: true

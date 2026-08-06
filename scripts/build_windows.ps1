@@ -10,22 +10,28 @@ param(
 
     [string]$FfmpegPath,
 
-    [string]$OutputRoot = (Join-Path (Split-Path -Parent $PSScriptRoot) 'artifacts')
+    [string]$OutputRoot
 )
 
 $ErrorActionPreference = 'Stop'
 Set-StrictMode -Version Latest
 
 $ProjectRoot = Split-Path -Parent $PSScriptRoot
+$OutputRoot = if ($OutputRoot) {
+    [System.IO.Path]::GetFullPath($OutputRoot)
+}
+else {
+    Join-Path $ProjectRoot 'artifacts'
+}
 $SourceRoot = Join-Path $ProjectRoot 'src'
 $EntryPoint = Join-Path $SourceRoot 'video_compressor'
 $IconPath = Join-Path $ProjectRoot 'assets\video-compressor.ico'
 $ReadmePath = Join-Path $ProjectRoot 'README.md'
 $ReadmeZhPath = Join-Path $ProjectRoot 'README.zh-CN.md'
 $LicensePath = Join-Path $ProjectRoot 'LICENSE'
+$ThirdPartyNoticesPath = Join-Path $ProjectRoot 'THIRD_PARTY_NOTICES.md'
 $VersionSourcePath = Join-Path $EntryPoint '__init__.py'
 $UvCommand = Get-Command uv -ErrorAction Stop
-$OutputRoot = [System.IO.Path]::GetFullPath($OutputRoot)
 
 if ($PSBoundParameters.ContainsKey('BundleFfmpeg')) {
     if ($PSBoundParameters.ContainsKey('Edition')) {
@@ -251,6 +257,12 @@ function Invoke-NuitkaBuild {
         ) -Force
     }
 
+    if (Test-Path -LiteralPath $ThirdPartyNoticesPath -PathType Leaf) {
+        Copy-Item -LiteralPath $ThirdPartyNoticesPath -Destination (
+            Join-Path (Split-Path -Parent $Executable) 'THIRD_PARTY_NOTICES.md'
+        ) -Force
+    }
+
     $Hash = (Get-FileHash -LiteralPath $Executable -Algorithm SHA256).Hash
     $Size = (Get-Item -LiteralPath $Executable).Length
     "$Hash *$ExecutableName" | Set-Content -LiteralPath (
@@ -297,6 +309,9 @@ if ($Edition -eq 'Both' -and $Mode -in @('OneFile', 'Both')) {
     Copy-Item -LiteralPath $LicensePath -Destination (
         Join-Path $ReleaseDirectory 'LICENSE.txt'
     ) -Force
+    Copy-Item -LiteralPath $ThirdPartyNoticesPath -Destination (
+        Join-Path $ReleaseDirectory 'THIRD_PARTY_NOTICES.md'
+    ) -Force
 
     $FullResult = $OneFileResults | Where-Object Edition -eq 'Full'
     $FfmpegLicense = Join-Path (
@@ -304,10 +319,53 @@ if ($Edition -eq 'Both' -and $Mode -in @('OneFile', 'Both')) {
     ) 'FFmpeg-GPLv3-LICENSE.txt'
     Copy-Item -LiteralPath $FfmpegLicense -Destination $ReleaseDirectory -Force
 
-    $ChecksumLines = $OneFileResults |
-        Sort-Object Edition |
+    $ArchivePaths = [System.Collections.Generic.List[string]]::new()
+    foreach ($Result in $OneFileResults) {
+        $BuildDirectory = Split-Path -Parent $Result.Executable
+        $PackageNames = [System.Collections.Generic.List[string]]::new()
+        @(
+            (Split-Path -Leaf $Result.Executable),
+            'README.md',
+            'README.zh-CN.md',
+            'LICENSE.txt',
+            'THIRD_PARTY_NOTICES.md',
+            'SHA256SUMS.txt'
+        ) | ForEach-Object { $PackageNames.Add($_) }
+        if ($Result.Edition -eq 'Full') {
+            $PackageNames.Add('FFmpeg-GPLv3-LICENSE.txt')
+        }
+
+        $PackageFiles = $PackageNames | ForEach-Object {
+            $PackageFile = Join-Path $BuildDirectory $_
+            if (-not (Test-Path -LiteralPath $PackageFile -PathType Leaf)) {
+                throw "Release package file not found: $PackageFile"
+            }
+            $PackageFile
+        }
+        $ArchivePath = Join-Path (
+            $ReleaseDirectory
+        ) "Universal-Video-Compressor-Windows-$($Result.Edition).zip"
+        if (Test-Path -LiteralPath $ArchivePath -PathType Leaf) {
+            Remove-Item -LiteralPath $ArchivePath -Force
+        }
+        Compress-Archive -LiteralPath $PackageFiles -DestinationPath $ArchivePath
+        $ArchivePaths.Add($ArchivePath)
+    }
+
+    $ReleaseHashTargets = [System.Collections.Generic.List[string]]::new()
+    foreach ($Result in $OneFileResults) {
+        $ReleaseHashTargets.Add((
+                Join-Path $ReleaseDirectory (Split-Path -Leaf $Result.Executable)
+            ))
+    }
+    foreach ($ArchivePath in $ArchivePaths) {
+        $ReleaseHashTargets.Add($ArchivePath)
+    }
+    $ChecksumLines = $ReleaseHashTargets |
+        Sort-Object { Split-Path -Leaf $_ } |
         ForEach-Object {
-            "$($_.Sha256) *$(Split-Path -Leaf $_.Executable)"
+            $Hash = (Get-FileHash -LiteralPath $_ -Algorithm SHA256).Hash
+            "$Hash *$(Split-Path -Leaf $_)"
         }
     $ChecksumLines | Set-Content -LiteralPath (
         Join-Path $ReleaseDirectory 'SHA256SUMS.txt'

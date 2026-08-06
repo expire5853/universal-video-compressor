@@ -233,6 +233,7 @@ ZH_CN_TRANSLATIONS: dict[str, str] = {
     "Output verification failed: no 10-bit video was produced.": "输出校验失败：没有得到 10-bit 视频。",
     "Output verification failed: audio was removed, but the output still contains audio.": "输出校验失败：要求移除音频，但输出仍包含音频。",
     "Output verification failed: the source contains audio, but output audio is missing.": "输出校验失败：源视频含音频，但输出音频丢失。",
+    "Output verification failed: expected audio {expected}, got {actual}.": "输出校验失败：预期音频编码为 {expected}，实际为 {actual}。",
     "Output appeared during compression and was not overwritten: {path}": "输出在压制期间出现，未覆盖：{path}",
 }
 

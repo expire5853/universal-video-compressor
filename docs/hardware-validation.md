@@ -2,6 +2,18 @@
 
 This document records one validation environment; it is not a universal support claim.
 
+Community results can be submitted with the repository's **Hardware compatibility report** issue form. A device name or an encoder listed by FFmpeg is not enough: record the driver, FFmpeg build, real initialization result, output probe, pixel depth, and quality mode.
+
+## Compatibility matrix
+
+| Vendor/backend | Detection | Real encode | Current evidence |
+|---|---|---|---|
+| CPU software | Verified | Verified | Ryzen AI 7 H 350 system below |
+| AMD AMF | Verified | Verified | Radeon 860M system below |
+| NVIDIA NVENC | Implemented | Unverified on real hardware | Community report needed |
+| Intel QSV | Implemented | Unverified on real hardware | Community report needed |
+| NPU | Device/driver visibility | No FFmpeg backend | Not selectable |
+
 Date: 2026-08-05
 
 ## Environment

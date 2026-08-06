@@ -25,10 +25,25 @@ uv run video-compressor
 Run the checks before submitting a pull request:
 
 ```powershell
-uv run ruff format --check src tests
-uv run ruff check src tests
+uv run ruff format --check src tests scripts
+uv run ruff check src tests scripts
 uv run python -m unittest discover -s tests -v
 ```
+
+Hardware-only results can be submitted with the **Hardware compatibility report** issue form. Include a sanitized diagnostics report so maintainers can distinguish device detection from a working encoder initialization.
+
+## Documentation screenshots
+
+Generate the README previews from a real Windows Qt window after hardware detection finishes:
+
+```powershell
+uv run python -m video_compressor --language en --self-test `
+  --screenshot docs\images\app-preview-en.png
+uv run python -m video_compressor --language zh_CN --self-test `
+  --screenshot docs\images\app-preview.png
+```
+
+Inspect both images before committing them. Do not include selected files, usernames, private paths, or sensitive media metadata.
 
 ## Design rules
 

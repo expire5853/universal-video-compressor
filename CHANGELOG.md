@@ -6,6 +6,25 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Added
+
+- Added Python 3.13 CI coverage, Dependabot updates, CodeQL analysis, and GitHub build-provenance attestations.
+- Added self-contained Full and Lite ZIP downloads with documentation and third-party notices.
+- Added a reusable release verifier for ZIP contents, checksums, application languages, and bundled/system FFmpeg resolution.
+- Added an English usage guide, English application screenshot, contributor conduct policy, and hardware-report issue form.
+
+### Fixed
+
+- Use the package version in encoded-file metadata instead of a stale hard-coded product label.
+- Avoid unnecessary filesystem access when FFprobe already reports the media size.
+- Verify the selected audio codec before atomically publishing an encoded output.
+- Allow the documented `powershell -File` build command to calculate its default artifact directory correctly.
+
+### Changed
+
+- Generate future GitHub Release descriptions from validated, categorized changelog entries instead of relying on an unstructured commit summary.
+- Pin GitHub Actions to immutable commit SHAs and use the current artifact uploader.
+
 ## [0.1.1] - 2026-08-05
 
 ### Added
