@@ -1,5 +1,5 @@
 [build-system]
-requires = ["hatchling>=1.27"]
+requires = ["hatchling>=1.31.0"]
 build-backend = "hatchling.build"
 
 [project]
@@ -38,13 +38,13 @@ video-compressor = "video_compressor.gui:main"
 
 [dependency-groups]
 dev = [
-  "ruff==0.12.8",
+  "ruff==0.16.1",
 ]
 build = [
   "Nuitka==4.1.3",
   "ordered-set==4.1.0",
   "Pillow==12.3.0",
-  "zstandard==0.23.0",
+  "zstandard==0.25.0",
 ]
 
 [tool.hatch.version]
