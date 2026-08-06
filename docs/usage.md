@@ -60,6 +60,8 @@ Quality modes are translated to parameters supported by the selected backend:
 
 The interface explains the direction of each quality value and dynamically hides modes that are unavailable for the selected encoder and pixel depth. Other settings include resolution, 1–240 fps, 8/10-bit output, keyframe interval, audio copy, AAC, Opus, FLAC, audio removal, and audio bitrate.
 
+Choice fields have a visible arrow area, and numeric fields have separate plus and minus buttons. To prevent accidental changes while scrolling the page, the mouse wheel changes either type of field only after that control has focus. Task progress and the main action buttons remain fixed at the bottom of the window while the settings page scrolls.
+
 The current version processes the first video stream and the first audio stream. Additional audio tracks, subtitle streams, and attachments are not copied. Review the preview command before processing archival or multi-language media.
 
 ## Windows OneFile editions
