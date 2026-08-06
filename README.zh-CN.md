@@ -2,21 +2,38 @@
 
 [English](README.md) | **简体中文**
 
+[![最新版本](https://img.shields.io/github/v/release/expire5853/universal-video-compressor)](https://github.com/expire5853/universal-video-compressor/releases/latest)
+![Windows](https://img.shields.io/badge/platform-Windows%2010%20%7C%2011-0078D4?logo=windows)
 [![CI](https://github.com/expire5853/universal-video-compressor/actions/workflows/ci.yml/badge.svg)](https://github.com/expire5853/universal-video-compressor/actions/workflows/ci.yml)
 [![CodeQL](https://github.com/expire5853/universal-video-compressor/actions/workflows/codeql.yml/badge.svg)](https://github.com/expire5853/universal-video-compressor/actions/workflows/codeql.yml)
-![Python 3.12–3.13](https://img.shields.io/badge/Python-3.12%E2%80%933.13-3776AB?logo=python&logoColor=white)
-![Windows](https://img.shields.io/badge/platform-Windows-0078D4?logo=windows)
 ![License](https://img.shields.io/badge/license-GPL--3.0--only-blue)
 
-一个使用 PySide6 和 FFmpeg 构建的现代 Windows 视频压制工作台。它会识别 CPU、GPU 和 NPU，检查驱动，并通过真实编码及 FFprobe 回读测试验证每一个可选编码器。
+Universal Video Compressor 是一个用于减小视频体积的 Windows 桌面程序，可以使用 CPU 或 GPU 编码。程序会检测当前电脑的硬件和驱动，并且只显示通过真实测试的编码器选项。
 
-![应用预览](docs/images/app-preview.png)
+> **第一次使用？** 请下载 **Full** 版，它不需要另外安装 FFmpeg。
 
-## 应该下载哪个 Windows 版本？
+![中文应用预览](docs/images/app-preview.png)
 
-**如果不能确定，请下载 Full。** Full 已经包含 FFmpeg 和 FFprobe，不需要另外安装多媒体工具。
+## 下载并开始使用
 
-只有在电脑上已经安装并管理 FFmpeg 时才选择 Lite。下载前打开 PowerShell，执行：
+打包好的程序支持 Windows 10 和 Windows 11，是免安装的便携程序：下载 EXE 后即可运行，不需要安装 Python。
+
+**[打开最新版本下载页（GitHub Release）](https://github.com/expire5853/universal-video-compressor/releases/latest)**
+
+在下载页展开 **Assets（资源）**，然后从下面两个功能相同的版本中选择一个：
+
+| 版本 | 应下载的文件 | 包含内容 | 大约体积 | 适合情况 |
+|---|---|---|---:|---|
+| **Full** | `VideoCompressor-Full.exe` | 程序、FFmpeg 和 FFprobe | 142 MiB | 希望下载后直接运行，或者不清楚电脑上是否有 FFmpeg |
+| **Lite** | `VideoCompressor-Lite.exe` | 仅程序本身 | 21 MiB | 电脑上已经安装并维护可用的 FFmpeg 和 FFprobe 命令 |
+
+两个版本的应用功能完全相同。每个 Release 都直接提供两个 EXE；如果还列出了对应的 Full/Lite ZIP，ZIP 中是同一个 EXE，以及 README 和许可证文件。
+
+### 应该选择哪个版本？
+
+如果不能确定，请选择 **Full**。它体积较大，是因为已经内置 FFmpeg 和 FFprobe。
+
+只有确认电脑上已经存在这两个工具时才考虑 **Lite**。打开 PowerShell，执行：
 
 ```powershell
 Get-Command ffmpeg.exe, ffprobe.exe -ErrorAction Stop
@@ -24,81 +41,104 @@ ffmpeg -hide_banner -version
 ffprobe -hide_banner -version
 ```
 
-- 如果所有命令都能显示路径或版本信息，可以使用 Lite；
+- 如果所有命令都能显示路径或版本信息，Lite 可以使用这套安装；
 - 如果任何命令提示找不到程序，请使用 Full；
-- 高级用户也可以通过 `FFMPEG_PATH` 环境变量或 `--ffmpeg` 参数向 Lite 指定 FFmpeg。
+- 高级用户也可以通过 `FFMPEG_PATH` 环境变量或 `--ffmpeg` 参数指定其他安装位置。
 
-两个版本的应用功能完全相同。GPU 加速仍需要正确安装 AMD、NVIDIA 或 Intel 显卡驱动；程序启动后会执行真实的编码器测试。
+版本选择不会决定 GPU 加速是否可用。AMD、NVIDIA 或 Intel 编码仍然需要兼容的显卡和正常工作的驱动；程序启动后会实际验证编码器。
 
-## 主要功能
+### 第一次运行
 
-- CPU 软件编码：x264、x265、SVT-AV1 和 VP9；
-- GPU 后端：AMD AMF、NVIDIA NVENC 和 Intel Quick Sync Video；
-- NPU 状态：显示设备和驱动；当前没有 FFmpeg 视频后端时保持不可选择；
-- 视频编码：H.264/AVC、H.265/HEVC、AV1 和 VP9；
-- 封装格式：MP4、MKV、WebM 和 MOV；
-- 质量控制：恒定质量、CQP、VBR 和 CBR，并根据后端与像素位深过滤；
-- 音频：兼容时复制、AAC、Opus、FLAC 或移除；
-- 安全发布：先写入临时文件，验证成功后再原子发布；
-- 两种 Windows 发行版：Full 内置 FFmpeg/FFprobe，Lite 使用系统安装；
-- 英文与简体中文界面，可在程序顶部选择。
+1. 下载一个 EXE；如果下载的是对应 ZIP，请先解压；
+2. 运行 `VideoCompressor-Full.exe` 或 `VideoCompressor-Lite.exe`；
+3. 等待设备和编码器检测完成；
+4. 选择源视频，再选择当前可用的格式与质量选项，然后开始压制。
 
-## 能力判断模型
+当前 EXE 尚未进行代码签名，因此 Windows SmartScreen 可能显示警告。继续运行前，请确认文件来自本仓库并核对 SHA-256。
 
-| 设备 | 后端 | 候选编码 | 可用条件 |
+## 程序可以做什么
+
+- 使用 CPU 软件编码，或者通过验证的 AMD、NVIDIA、Intel GPU 编码器；
+- 在所选后端支持时输出 H.264/AVC、H.265/HEVC、AV1 或 VP9；
+- 使用兼容的编码组合生成 MP4、MKV、WebM 或 MOV；
+- 使用快速方案，或手动控制质量类型、速度、分辨率、帧率、8/10-bit 和关键帧间隔；
+- 复制兼容的源音频，编码 AAC/Opus/FLAC，或者移除音频；
+- 开始前预览实际 FFmpeg 命令；
+- 先写入临时文件，使用 FFprobe 验证成功后再原子发布输出；
+- 使用英文或简体中文界面。
+
+## 硬件与编码器可用性
+
+在 `ffmpeg -encoders` 中看到编码器并不代表它真的可用。程序会分别检查设备、驱动、FFmpeg 构建、编码器初始化、输出封装、像素位深以及 FFprobe 回读结果。
+
+| 设备 | 后端 | 候选编码 | 何时可以选择 |
 |---|---|---|---|
-| CPU | 软件编码 | H.264、HEVC、AV1、VP9 | 编码、封装和回读测试成功 |
+| CPU | 软件编码 | H.264、HEVC、AV1、VP9 | 编码器、封装和回读测试成功 |
 | AMD GPU | AMF | H.264、HEVC、AV1 | AMD 设备、驱动和 AMF 测试成功 |
 | NVIDIA GPU | NVENC | H.264、HEVC、AV1 | NVIDIA 设备、驱动和 NVENC 测试成功 |
 | Intel GPU | QSV | H.264、HEVC、AV1、VP9 | Intel 设备、驱动和 QSV 测试成功 |
-| NPU | 取决于运行时 | 内置 FFmpeg 当前不提供 | 用于诊断显示，不能选择 |
+| NPU | 取决于运行时 | 内置 FFmpeg 当前不提供 | 仅显示诊断信息，不能用于编码 |
 
-界面还会测试质量模式与 8/10-bit 组合。某个组合失败时只隐藏该组合，不会禁用其他已经通过测试的组合。
+程序会独立测试质量模式与 8/10-bit 组合。某个组合失败时只隐藏这个组合，不会禁用其他已经通过测试的选项。
 
-## 从源码启动
+## 当前限制
+
+- 当前版本压制第一路视频流和第一路音频流；
+- 其他音轨、字幕流和附件不会复制；
+- 章节和封装元数据是否保留可能取决于输出格式；
+- 程序可以检测 NPU 供诊断使用，但内置 FFmpeg 当前没有 NPU 视频编码后端。
+
+处理存档视频、字幕视频或多语言视频前，请先检查“预览命令”。
+
+## 界面语言与详细帮助
+
+首次运行时，中文 Windows 使用简体中文，其他系统使用英文。可以在程序顶部选择 **English** 或 **简体中文**，新选择会在下次启动时生效。命令行用户也可以使用 `--language en` 或 `--language zh_CN` 临时指定语言。
+
+- [详细中文使用说明](docs/usage.zh-CN.md)
+- [英文使用说明](docs/usage.md)
+- [硬件验证状态](docs/hardware-validation.md)
+
+## 验证 Release 下载
+
+每个 Release 都提供 `SHA256SUMS.txt`。请计算所下载 EXE 或 ZIP 的 SHA-256，并与文件中的对应记录比较。
+
+使用当前工作流构建的新版本还会生成 GitHub 构建来源证明。安装 GitHub CLI 后，可以验证带有证明的文件：
+
+```powershell
+gh attestation verify .\VideoCompressor-Full.exe `
+  --repo expire5853/universal-video-compressor
+```
+
+## 面向开发者
+
+普通 Release 用户看到这里即可。后面的内容面向源码运行和项目贡献者。
+
+### 从源码运行
 
 要求：
 
 - Windows 10 或 11；
-- [uv](https://docs.astral.sh/uv/)；
+- 使用 [uv](https://docs.astral.sh/uv/) 管理 Python 3.12 或 3.13；
 - 系统 `PATH` 中存在 FFmpeg 和 FFprobe，或者显式提供 FFmpeg 路径。
 
 ```powershell
+git clone https://github.com/expire5853/universal-video-compressor.git
 cd universal-video-compressor
 uv sync --frozen
 uv run video-compressor
 ```
 
-直接打开视频：
+直接打开视频，或者生成机器可读的能力报告：
 
 ```powershell
 uv run video-compressor "C:\Videos\demo.mp4"
-```
 
-生成机器可读的能力报告：
-
-```powershell
 uv run python -m video_compressor `
   --diagnostics-report diagnostics.json `
   --self-test
 ```
 
-更详细的中文操作说明见 [docs/usage.zh-CN.md](docs/usage.zh-CN.md)。
-
-## Windows 发行版本
-
-| 版本 | 推荐下载文件 | 大约体积 | FFmpeg 要求 | 适合场景 |
-|---|---|---:|---|---|
-| Full | `Universal-Video-Compressor-Windows-Full.zip` | 142 MiB | 已内置 | 不安装 FFmpeg，下载后直接运行 |
-| Lite | `Universal-Video-Compressor-Windows-Lite.zip` | 21 MiB | `PATH` 中有 `ffmpeg.exe` 和 `ffprobe.exe` | 更小的下载体积、统一管理 FFmpeg |
-
-两个版本的功能相同。实际可用的 CPU/GPU 编码器仍取决于目标机器上的 FFmpeg 构建和驱动。
-
-## 应用语言
-
-首次运行跟随 Windows 语言：中文系统使用简体中文，其他系统使用英文。在应用顶部的语言选项中选择 **English** 或 **简体中文**，保存的语言会在下次启动时生效。也可以使用 `--language en` 或 `--language zh_CN` 启动。
-
-## 构建 Windows EXE
+### 构建 Windows 发行包
 
 ```powershell
 powershell -ExecutionPolicy Bypass `
@@ -107,15 +147,9 @@ powershell -ExecutionPolicy Bypass `
   -Edition Both
 ```
 
-输出位置：
+构建结果包括 Full/Lite EXE、对应 ZIP、许可证文件和 `SHA256SUMS.txt`，统一位于 `artifacts` 下。使用 `-Edition Full` 或 `-Edition Lite` 可以只构建一个版本；无法自动发现工具时，可以通过 `-FfmpegPath` 指定 Full 版需要打包的 FFmpeg。
 
-- `artifacts/full/onefile/VideoCompressor-Full.exe`；
-- `artifacts/lite/onefile/VideoCompressor-Lite.exe`；
-- `artifacts/release` 中的 Full/Lite 独立 ZIP、两个 EXE、公共文件和合并校验清单。
-
-使用 `-Edition Full` 或 `-Edition Lite` 可以只构建一个版本。无法自动发现工具时，Full 构建可以通过 `-FfmpegPath` 指定 FFmpeg。
-
-## 开发
+### 检查与项目文档
 
 ```powershell
 uv sync --frozen --group dev
@@ -124,20 +158,10 @@ uv run ruff check src tests scripts
 uv run python -m unittest discover -s tests -v
 ```
 
-硬件测试与拉取请求要求见 [CONTRIBUTING.md](CONTRIBUTING.md)，内部设计见 [docs/architecture.md](docs/architecture.md)，发布流程见 [docs/releasing.md](docs/releasing.md)。
-
-## 当前媒体流范围
-
-当前版本压制第一路视频流，并在没有选择移除音频时处理第一路音频流。其他音轨、字幕流和附件不会复制；章节及封装元数据是否保留取决于输出格式。处理存档视频或多语言视频前，请先检查“预览命令”。
-
-## 验证 Release 下载
-
-Release ZIP 包含 EXE、中英文 README、应用许可证、第三方声明，以及 Full 版适用的 FFmpeg 许可证。请先使用 `SHA256SUMS.txt` 核对文件；安装了 GitHub CLI 的用户还可以验证构建来源：
-
-```powershell
-gh attestation verify .\Universal-Video-Compressor-Windows-Full.zip `
-  --repo expire5853/universal-video-compressor
-```
+- [贡献指南](CONTRIBUTING.md)
+- [内部架构](docs/architecture.md)
+- [发布流程](docs/releasing.md)
+- [安全策略](SECURITY.md)
 
 ## 旧版预设
 

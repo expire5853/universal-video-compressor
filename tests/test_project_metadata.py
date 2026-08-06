@@ -50,6 +50,34 @@ class ProjectMetadataTests(unittest.TestCase):
             self.assertIn("VideoCompressor-Lite.exe", readme)
             self.assertIn("Get-Command ffmpeg.exe, ffprobe.exe", readme)
 
+        self.assertIn("releases/latest", english)
+        self.assertIn("releases/latest", chinese)
+        self.assertIn("Python is not required", english)
+        self.assertIn("不需要安装 Python", chinese)
+
+        english_beginner_flow = (
+            "## Download and start",
+            "### Which edition should I choose?",
+            "### First run",
+            "## What the application can do",
+            "## Important limitations",
+            "## For developers",
+        )
+        chinese_beginner_flow = (
+            "## 下载并开始使用",
+            "### 应该选择哪个版本？",
+            "### 第一次运行",
+            "## 程序可以做什么",
+            "## 当前限制",
+            "## 面向开发者",
+        )
+        for readme, headings in (
+            (english, english_beginner_flow),
+            (chinese, chinese_beginner_flow),
+        ):
+            positions = [readme.index(heading) for heading in headings]
+            self.assertEqual(positions, sorted(positions))
+
     def test_automation_actions_are_pinned_and_release_is_self_contained(self) -> None:
         project_root = Path(__file__).resolve().parents[1]
         workflows = list((project_root / ".github/workflows").glob("*.yml"))
