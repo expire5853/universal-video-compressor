@@ -52,7 +52,7 @@ ffprobe -hide_banner -version
 1. 下载一个 EXE；如果下载的是对应 ZIP，请先解压；
 2. 运行 `VideoCompressor-Full.exe` 或 `VideoCompressor-Lite.exe`；
 3. 等待设备检测完成；也可以跳过或取消，稍后再选择“立即检测”；
-4. 选择源视频，再选择当前可用的格式与质量选项，然后开始压制。
+4. 选择源视频、已验证的编码设备和一个快速方案，然后开始压制；只有需要手动控制时才展开高级视频设置。
 
 当前 EXE 尚未进行代码签名，因此 Windows SmartScreen 可能显示警告。继续运行前，请确认文件来自本仓库并核对 SHA-256。
 
@@ -61,7 +61,7 @@ ffprobe -hide_banner -version
 - 使用 CPU 软件编码，或者通过验证的 AMD、NVIDIA、Intel GPU 编码器；
 - 在所选后端支持时输出 H.264/AVC、H.265/HEVC、AV1 或 VP9；
 - 使用兼容的编码组合生成 MP4、MKV、WebM 或 MOV；
-- 使用快速方案，或手动控制质量类型、速度、分辨率、帧率、8/10-bit 和关键帧间隔；
+- 优先使用快速方案，也可以展开可选的高级设置，手动控制质量类型、速度、分辨率、帧率、8/10-bit 和关键帧间隔；
 - 复制兼容的源音频，编码 AAC/Opus/FLAC，或者移除音频；
 - 开始前预览实际 FFmpeg 命令；
 - 先写入临时文件，使用 FFprobe 验证成功后再原子发布输出；
@@ -78,6 +78,8 @@ ffprobe -hide_banner -version
 | NVIDIA GPU | NVENC | H.264、HEVC、AV1 | NVIDIA 设备、驱动和 NVENC 测试成功 |
 | Intel GPU | QSV | H.264、HEVC、AV1、VP9 | Intel 设备、驱动和 QSV 测试成功 |
 | NPU | 取决于运行时 | 内置 FFmpeg 当前不提供 | 仅显示诊断信息，不能用于编码 |
+
+主选项框只列出通过初始化测试的 CPU/GPU 后端，并使用易懂的编码格式名称。不可用后端、FFmpeg 技术编码器名称和失败原因仍可在“检测详情”中查看。NPU 结果只作为状态信息显示，永远不会成为可选编码设备。
 
 程序会独立测试质量模式与 8/10-bit 组合。某个组合失败时只隐藏这个组合，不会禁用其他已经通过测试的选项。
 

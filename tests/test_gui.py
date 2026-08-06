@@ -9,17 +9,85 @@ os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
 from PySide6.QtWidgets import QApplication
 
-from video_compressor.core import ToolPaths
+from video_compressor.core import (
+    BackendCapability,
+    CapabilityReport,
+    DeviceInfo,
+    EncoderProbe,
+    ToolPaths,
+)
 from video_compressor.gui import (
     ChoiceComboBox,
     DetectionWorker,
     MainWindow,
     StepSpinBox,
+    capability_details_text,
     responsive_column_count,
 )
 from video_compressor.i18n import set_language
 
 APP = QApplication.instance() or QApplication([])
+
+
+def sample_capability_report() -> CapabilityReport:
+    cpu_probe = EncoderProbe(
+        "cpu_hevc",
+        True,
+        "Initialization passed",
+        120,
+        ("8:constant_quality",),
+    )
+    amd_probe = EncoderProbe(
+        "amd_hevc",
+        False,
+        "Driver initialization failed",
+        80,
+        (),
+        ("8-bit/Constant quality: test failure",),
+    )
+    return CapabilityReport(
+        ffmpeg_version="FFmpeg test",
+        devices=(
+            DeviceInfo("CPU", "Test", "Test CPU", "N/A", "", "OK", "cpu"),
+            DeviceInfo("NPU", "Test", "Test NPU", "1.2.3", "", "OK", "npu"),
+        ),
+        compiled_encoders=("hevc_amf", "libx265"),
+        backends=(
+            BackendCapability(
+                "cpu",
+                "CPU",
+                "Software",
+                "CPU · software encoding · Test CPU",
+                True,
+                "N/A",
+                True,
+                "Driver/encoder initialization passed: 1 format available",
+                (cpu_probe,),
+            ),
+            BackendCapability(
+                "amd_amf",
+                "GPU",
+                "AMD",
+                "GPU · AMD AMF · Test GPU",
+                True,
+                "9.9.9",
+                False,
+                "Encoder found, but driver initialization failed",
+                (amd_probe,),
+            ),
+            BackendCapability(
+                "npu",
+                "NPU",
+                "NPU",
+                "NPU · Test NPU",
+                True,
+                "1.2.3",
+                False,
+                "No FFmpeg NPU video encoding backend",
+                (),
+            ),
+        ),
+    )
 
 
 class _TestMainWindow(MainWindow):
@@ -138,6 +206,65 @@ class ResponsiveLayoutTests(unittest.TestCase):
             window._update_responsive_layout()
             self.assertEqual(window._responsive_device_columns, 3)
             self.assertEqual(window._responsive_quality_columns, 3)
+        finally:
+            window.close()
+
+
+class DeviceOptionSemanticsTests(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls) -> None:
+        set_language("en")
+
+    def test_primary_selectors_only_show_verified_friendly_choices(self) -> None:
+        window = _TestMainWindow()
+        try:
+            report = sample_capability_report()
+            window.capability_report = report
+            window._populate_backends()
+            window._update_hardware_summary()
+            window._set_running(False)
+
+            self.assertEqual(window.backend_combo.count(), 1)
+            self.assertEqual(window.backend_combo.currentData(), "cpu")
+            self.assertEqual(window.backend_combo.findData("amd_amf"), -1)
+            self.assertEqual(window.backend_combo.findData("npu"), -1)
+            self.assertEqual(window.codec_combo.currentText(), "H.265 / HEVC")
+            self.assertNotIn("libx265", window.codec_combo.currentText())
+            self.assertIn(
+                "Unavailable CPU/GPU backends are hidden",
+                window.hardware_summary.text(),
+            )
+            self.assertIn("NPU detected", window.hardware_summary.text())
+
+            details = capability_details_text(report)
+            self.assertIn("GPU · AMD AMF · Test GPU", details)
+            self.assertIn("hevc_amf", details)
+            self.assertIn("Driver initialization failed", details)
+        finally:
+            window.close()
+
+    def test_advanced_video_settings_are_collapsed_by_default(self) -> None:
+        window = _TestMainWindow()
+        try:
+            self.assertFalse(window.advanced_toggle_button.isChecked())
+            self.assertTrue(
+                all(
+                    widget.isHidden()
+                    for field in window.advanced_quality_fields
+                    for widget in field
+                )
+            )
+
+            window.advanced_toggle_button.setChecked(True)
+
+            self.assertTrue(
+                all(
+                    not widget.isHidden()
+                    for field in window.advanced_quality_fields
+                    for widget in field
+                )
+            )
+            self.assertIn("Hide advanced", window.advanced_toggle_button.text())
         finally:
             window.close()
 

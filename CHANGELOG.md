@@ -24,6 +24,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Changed
 
+- Show only verified CPU/GPU backends in primary selectors, present friendly codec names, keep NPU as status-only information, and collapse optional advanced video controls by default.
 - Keep source selection available during background detection and retain the last complete capability report when a refresh is cancelled or fails.
 - Make dropdown and numeric controls visually distinct, prevent unfocused mouse-wheel changes, keep task progress and actions visible, and reflow settings at narrower window widths.
 - Generate future GitHub Release descriptions from validated, categorized changelog entries instead of relying on an unstructured commit summary.
