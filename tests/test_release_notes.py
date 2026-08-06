@@ -12,11 +12,12 @@ class ReleaseNotesTests(unittest.TestCase):
         project_root = Path(__file__).resolve().parents[1]
         changelog = (project_root / "CHANGELOG.md").read_text(encoding="utf-8")
 
-        notes = build_release_notes(changelog, "v0.1.1")
+        notes = build_release_notes(changelog, "v0.2.0")
 
         self.assertIn("## Release summary", notes)
         self.assertIn("### New features", notes)
-        self.assertIn("### Bug fixes\n\n- None in this release.", notes)
+        self.assertIn("### Bug fixes", notes)
+        self.assertIn("Upgrade the icon-generation dependency Pillow", notes)
         self.assertIn("### Breaking changes\n\n- None in this release.", notes)
         self.assertIn("### Other changes", notes)
         self.assertIn("Universal-Video-Compressor-Windows-Full.zip", notes)
