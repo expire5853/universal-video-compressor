@@ -38,7 +38,7 @@ video-compressor = "video_compressor.gui:main"
 
 [dependency-groups]
 dev = [
-  "ruff==0.16.1",
+  "ruff==0.16.4",
 ]
 build = [
   "Nuitka==4.1.3",
